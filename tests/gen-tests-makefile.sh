@@ -32,12 +32,19 @@ generate_tests() {
 	do_sv=false
 	do_sh=false
 	yosys_args=""
+	ys_glob="*.ys"
+
 
 	while [[ $# -gt 0 ]]; do
 		arg="$1"
 		case "$arg" in
 			-y|--yosys-scripts)
 				do_ys=true
+				shift
+				;;
+			-g|--yosys-glob)
+				ys_glob="$2"
+				shift
 				shift
 				;;
 			-s|--prove-sv)
@@ -68,7 +75,7 @@ generate_tests() {
 	echo "all:"
 
 	if [[ $do_ys = true ]]; then
-		for x in *.ys; do
+		for x in $ys_glob; do
 			generate_ys_test "$x" "$yosys_args"
 		done
 	fi;
