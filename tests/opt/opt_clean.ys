@@ -1,0 +1,40 @@
+# Remove intermediary wire
+read_verilog <<EOT
+module m1(...);
+	input a;
+	output b;
+	wire c;
+	wire d;
+	assign c = a;
+	assign d = c;
+	assign b = d;
+endmodule
+EOT
+
+select -assert-count 4 w:*
+opt_clean -purge
+select -assert-count 2 w:*
+design -reset
+
+# Remove intermediary wire, even if they split up
+read_verilog <<EOT
+module m2(...);
+	input [1:0] a;
+	output [1:0] b;
+	wire c;
+	wire d;
+	wire e;
+	wire f;
+	assign c = a[0];
+	assign d = a[1];
+	assign e = c;
+	assign f = d;
+	assign b[0] = e;
+	assign b[1] = f;
+endmodule
+EOT
+
+select -assert-count 6 w:*
+opt_clean -purge
+select -assert-count 2 w:*
+design -reset
