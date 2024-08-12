@@ -1,0 +1,96 @@
+log simple
+read_verilog <<EOT
+module top(...);
+	input a;
+	input x;
+	output b;
+
+	assign b = x ? a : 1'bz;
+endmodule
+EOT
+
+copy top gold
+
+cd top
+select -assert-count 1 t:$mux
+select -assert-count 0 t:$tribuf
+tribuf
+select -assert-count 0 t:$mux
+select -assert-count 1 t:$tribuf
+cd
+
+equiv_make gold top equiv
+eval -table a -table x -assert b 11 equiv
+
+design -reset
+
+
+log two drivers
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	output [1:0] b;
+
+	assign b = x ? a : 2'bz;
+	assign b = x ? 2'bz : a;
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate top
+cd
+
+equiv_make gold top equiv
+eval -table a -table x -assert b 11 equiv
+
+design -reset
+
+
+log nested
+read_verilog <<EOT
+module top(...);
+	input a;
+	input x;
+	input y;
+	output b;
+
+	assign b = x ? (y ? a : 1'bz) : 1'bz;
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate
+cd
+
+equiv_make gold top equiv
+eval -table a -table x -table y -assert b 11 equiv
+
+design -reset
+
+
+log nested 2
+read_verilog <<EOT
+module top(...);
+	input a;
+	input b;
+	input x;
+	input y;
+	output q;
+
+	assign q = x ? a : (y ? b : 1'bz);
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate
+cd
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 1 equiv
