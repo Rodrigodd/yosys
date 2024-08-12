@@ -373,6 +373,9 @@ struct CellTypes {
 		HANDLE_CELL_TYPE(neg)
 #undef HANDLE_CELL_TYPE
 
+		if (type == ID($equiv))
+			return RTLIL::const_equiv(arg1, arg2);
+
 		if (type == ID($_BUF_))
 			return arg1;
 		if (type == ID($_NOT_))
@@ -395,6 +398,7 @@ struct CellTypes {
 			return const_or(arg1, eval_not(arg2), false, false, 1);
 
 		if (errp != nullptr) {
+			log("Unsupported cell type %s in const eval.\n", log_id(type));
 			*errp = true;
 			return State::Sm;
 		}
