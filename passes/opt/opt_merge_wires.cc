@@ -52,66 +52,60 @@ struct OptMergeWiresPass : public Pass {
 		int changed_wires = 0;
 
 		for (auto module : design->selected_modules()) {
-			dict<RTLIL::Wire *, RTLIL::Wire *> wire_to_representative_wire;
-			{
-				// merge-find set of weakly connected component of wires
-				mfp<RTLIL::Wire *> components;
-				log("Finding weakly connected component of wires in module `%s'.\n", module->name.c_str());
-
-				for (auto conn : module->connections()) {
-					if (conn.first.is_wire() && conn.second.is_wire() && design->selected(module, conn.first.as_wire()) &&
-					    design->selected(module, conn.second.as_wire())) {
-						log("Merging wires `%s' and `%s'.\n", conn.first.as_wire()->name.c_str(),
-						    conn.second.as_wire()->name.c_str());
-						// if two wires are connected, they are from the same component
-						components.merge(conn.first.as_wire(), conn.second.as_wire());
-					}
+			dict<RTLIL::SigBit, RTLIL::SigBit> sigbit_to_representative_sigbit;
+			SigMap sigmap;
+			// exclude constants from the sigmap (otherwise they will merge
+			// unrelelated components just because they are connected to the
+			// same constant)
+			for (auto &it : module->connections()) {
+				for (int i = 0; i < GetSize(it.first); i++) {
+					if (it.first[i].wire == nullptr || it.second[i].wire == nullptr)
+						goto skip_connection;
 				}
+				sigmap.add(it.first, it.second);
+			skip_connection:;
+			}
+			{
 
-				// Map each wire to a representative wire. The choice of the
+				// merge-find set of weakly connected component of wires
+
+				log("Finding weakly connected component of sigbits in module `%s'.\n", module->name.c_str());
+
+				// Map each sigbit to a representative sigbit. The choice of the
 				// representative wire could be arbitrary, but we prefer a wire
 				// that is a input port, or one that have a public name.
-				dict<RTLIL::Wire *, pool<RTLIL::Wire *>> components_map;
-				for (auto wire : components) {
-					components_map[components.find(wire)].insert(wire);
+				dict<RTLIL::SigBit, pool<RTLIL::SigBit>> components_map;
+				for (auto sigbit : sigmap.allbits()) {
+					components_map[sigmap(sigbit)].insert(sigbit);
 				}
 				for (auto component : components_map) {
-					RTLIL::Wire *representative_wire = nullptr;
-					for (auto wire : component.second) {
-						if (wire->port_input) {
-							representative_wire = wire;
+					RTLIL::SigBit representative_sigbit;
+					for (auto sigbit : component.second) {
+						if (sigbit.wire->port_input) {
+							representative_sigbit = sigbit;
 							break;
 						}
 					}
-					if (representative_wire == nullptr) {
-						for (auto wire : component.second) {
-							if (wire->name[0] != '$') {
-								representative_wire = wire;
+					if (representative_sigbit.wire == nullptr) {
+						for (auto sigbit : component.second) {
+							if (sigbit.wire->name[0] != '$') {
+								representative_sigbit = sigbit;
 								break;
 							}
 						}
 					}
-					if (representative_wire == nullptr) {
-						representative_wire = *component.second.begin();
+					if (representative_sigbit.wire == nullptr) {
+						representative_sigbit = *component.second.begin();
 					}
-					for (auto wire : component.second) {
-						if (wire == representative_wire)
+
+					log("Representative sigbit for component `%s' is `%s'.\n", log_signal(component.second),
+					    log_signal(representative_sigbit));
+
+					for (auto sigbit : component.second) {
+						if (sigbit == representative_sigbit)
 							continue;
-						wire_to_representative_wire[wire] = representative_wire;
+						sigbit_to_representative_sigbit[sigbit] = representative_sigbit;
 					}
-				}
-			}
-
-			// create a rule that map any sigbit of a wire to the sigbit of the representative wire
-			dict<SigBit, SigBit> rules;
-			for (auto pair : wire_to_representative_wire) {
-				RTLIL::Wire *wire = pair.first;
-				RTLIL::Wire *representative_wire = pair.second;
-
-				changed_wires++;
-				log("Mapping wire `%s' to representative wire `%s'.\n", wire->name.c_str(), representative_wire->name.c_str());
-				for (int i = 0; i < GetSize(wire); i++) {
-					rules[SigBit(wire, i)] = SigBit(representative_wire, i);
 				}
 			}
 
@@ -119,7 +113,7 @@ struct OptMergeWiresPass : public Pass {
 			for (auto cell : module->cells()) {
 				for (auto conn : cell->connections()) {
 					const char *from = log_signal(conn.second);
-					conn.second.replace(rules);
+					conn.second.replace(sigbit_to_representative_sigbit);
 					cell->setPort(conn.first, conn.second);
 					const char *to = log_signal(conn.second);
 					// if (strcmp(from, to) != 0) {
@@ -128,25 +122,46 @@ struct OptMergeWiresPass : public Pass {
 				}
 			}
 
-			// any wire that is not a representative wire will not have any
+			// any sigbit that is not a representative sigbit will not have any
 			// outbounds connections, with a single inbound connection from the
-			// representative wire.
+			// representative sigbit.
 
-			// first, remove all connections between wires
+			// first, remove all connections between sigbits of the same component
+			for (auto &connection : module->connections_) {
+				SigSpec first = sigmap(connection.first);
+				SigSpec second = sigmap(connection.second);
+
+				// log("Modifying connection from `%s' <- `%s' to '%s' <- '%s'.\n", log_signal(connection.first),
+				//     log_signal(connection.second), log_signal(first), log_signal(second));
+
+				// remove sigbits connected to themselves
+				bool changed = false;
+				for (int i = GetSize(first) - 1; i >= 0; i--) {
+					if (first[i] == second[i]) {
+						connection.first.remove(i);
+						connection.second.remove(i);
+						changed = true;
+					}
+				}
+				// log("Becames `%s' <- `%s'.\n", log_signal(connection.first), log_signal(connection.second));
+				if (changed) {
+					changed_wires++;
+				}
+			}
+			// remove connections that become empty
 			module->connections_.erase(std::remove_if(module->connections_.begin(), module->connections_.end(),
 								  [&](const std::pair<RTLIL::SigSpec, RTLIL::SigSpec> &conn) {
-									  return conn.first.is_wire() && conn.second.is_wire() &&
-										 design->selected(module, conn.first.as_wire()) &&
-										 design->selected(module, conn.second.as_wire());
+									  log_assert(conn.first.size() == conn.second.size());
+									  return conn.first.empty();
 								  }),
 						   module->connections_.end());
 
-			// apply the rule to all non-selected connections
+			// any wire that was driving a component wire will now be driven by the representative wire
 			for (auto &connections : module->connections_) {
 				const char *first = log_signal(connections.first);
 				const char *second = log_signal(connections.second);
-				connections.first.replace(rules);
-				connections.second.replace(rules);
+				connections.first.replace(sigbit_to_representative_sigbit);
+				connections.second.replace(sigbit_to_representative_sigbit);
 				const char *first2 = log_signal(connections.first);
 				const char *second2 = log_signal(connections.second);
 				if (strcmp(first, first2) != 0 || strcmp(second, second2) != 0) {
@@ -154,13 +169,62 @@ struct OptMergeWiresPass : public Pass {
 				}
 			}
 
-			// then, connect the representative wire to each wire
-			for (auto pair : wire_to_representative_wire) {
-				RTLIL::Wire *wire = pair.first;
-				RTLIL::Wire *representative_wire = pair.second;
+			// then, connect the representative sigbit to each sigbit
+			// but first, try to pack the sigbits in sigspecs
 
-				log("Connecting representative wire `%s' to wire `%s'.\n", representative_wire->name.c_str(), wire->name.c_str());
-				module->connect(RTLIL::SigSig(wire, representative_wire));
+			// convert dict in to vector<pair>
+			std::vector<std::pair<RTLIL::SigSpec, RTLIL::SigSpec>> sigbit_to_representative_sigbit_vector;
+			for (auto pair : sigbit_to_representative_sigbit) {
+				sigbit_to_representative_sigbit_vector.push_back(pair);
+			}
+
+			// sort the vector by the representative sigbit
+			std::sort(sigbit_to_representative_sigbit_vector.begin(), sigbit_to_representative_sigbit_vector.end(),
+				  [](const std::pair<RTLIL::SigSpec, RTLIL::SigSpec> &a, const std::pair<RTLIL::SigSpec, RTLIL::SigSpec> &b) {
+					  return a.first[0].wire != b.first[0].wire ? a.first[0].wire < b.first[0].wire
+										    : a.second[0].offset < b.second[0].offset;
+				  });
+
+			// merge consecutive sigbits in sigspecs if they connect the same wires
+			if (GetSize(sigbit_to_representative_sigbit_vector) > 1) {
+				int i, j;
+				for (i = 0, j = 1; j < GetSize(sigbit_to_representative_sigbit_vector); j++) {
+					bool first_same = sigbit_to_representative_sigbit_vector[i].first[0].wire ==
+							  sigbit_to_representative_sigbit_vector[j].first[0].wire;
+					bool second_same = sigbit_to_representative_sigbit_vector[i].second[0].wire ==
+							   sigbit_to_representative_sigbit_vector[j].second[0].wire;
+					// log("Comparing `%s' == `%s' and `%s' == `%s'.\n",
+					// log_signal(sigbit_to_representative_sigbit_vector[i].first),
+					//     log_signal(sigbit_to_representative_sigbit_vector[j].first),
+					//     log_signal(sigbit_to_representative_sigbit_vector[i].second),
+					//     log_signal(sigbit_to_representative_sigbit_vector[j].second));
+
+					if (first_same && second_same) {
+						sigbit_to_representative_sigbit_vector[i].first.append(
+						  sigbit_to_representative_sigbit_vector[j].first);
+						sigbit_to_representative_sigbit_vector[i].second.append(
+						  sigbit_to_representative_sigbit_vector[j].second);
+						continue;
+					}
+
+					i++;
+					if (i != j)
+						sigbit_to_representative_sigbit_vector[i] = sigbit_to_representative_sigbit_vector[j];
+				}
+				sigbit_to_representative_sigbit_vector.resize(i + 1);
+				log("Merged %d sigbits in %d sigspecs:\n", j, i + 1);
+				for (int k = 0; k <= i; k++) {
+					log("  `%s' -> `%s'.\n", log_signal(sigbit_to_representative_sigbit_vector[k].first),
+					    log_signal(sigbit_to_representative_sigbit_vector[k].second));
+				}
+			}
+
+			for (auto pair : sigbit_to_representative_sigbit_vector) {
+				RTLIL::SigSpec sigbit = pair.first;
+				RTLIL::SigSpec representative_sigbit = pair.second;
+
+				log("Connecting representative sigbit `%s' to wire `%s'.\n", log_signal(representative_sigbit), log_signal(sigbit));
+				module->connect(RTLIL::SigSig(sigbit, representative_sigbit));
 			}
 
 			log_suppressed();
@@ -168,7 +232,7 @@ struct OptMergeWiresPass : public Pass {
 
 		if (changed_wires > 0)
 			design->scratchpad_set_bool("opt.did_something", true);
-		log("Modify a total of %d wires.\n", changed_wires);
+		log("Modify a total of %d connections.\n", changed_wires);
 	}
 } OptMergeWiresPass;
 
