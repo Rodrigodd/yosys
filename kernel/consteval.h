@@ -104,13 +104,13 @@ struct ConstMap {
 struct ConstEval {
 	RTLIL::Module *module;
 	SigMap assign_map;
-	// SigMap values_map;
 	ConstMap values_map;
 	SigPool stop_signals;
 	SigSet<RTLIL::Cell *> sig2driver;
 	std::set<RTLIL::Cell *> busy;
 	std::vector<ConstMap> stack;
 	RTLIL::State defaultval;
+	pool<RTLIL::SigBit> visited;
 
 	ConstEval(RTLIL::Module *module, RTLIL::State defaultval = RTLIL::State::Sm) : module(module), assign_map(module), defaultval(defaultval)
 	{
@@ -131,6 +131,7 @@ struct ConstEval {
 	{
 		values_map.clear();
 		stop_signals.clear();
+		visited.clear();
 	}
 
 	void push() { stack.push_back(values_map); }
@@ -441,11 +442,18 @@ struct ConstEval {
 	{
 		const char *signal_name = log_signal(sig);
 		assign_map.apply(sig);
-		values_map.apply(sig);
 		// log("evaluating sig %s (apply_map: %s)\n", signal_name, log_signal(sig));
 
-		if (sig.is_fully_const())
+		bool fully_evaluated = true;
+		for (auto bit : sig) {
+			if (visited.count(bit))
+				continue;
+			fully_evaluated = false;
+		}
+		if (fully_evaluated) {
+			values_map.apply(sig);
 			return true;
+		}
 
 		if (stop_signals.check_any(sig)) {
 			undef = stop_signals.extract(sig);
@@ -474,13 +482,18 @@ struct ConstEval {
 			busy.erase(busy_cell);
 
 		values_map.apply(sig);
-		if (sig.is_fully_const())
+		if (sig.is_fully_const()) {
+			for (auto bit : sig)
+				visited.insert(bit);
 			return true;
+		}
 
 		if (defaultval != RTLIL::State::Sm) {
-			for (auto &bit : sig)
+			for (auto &bit : sig) {
 				if (bit.wire)
 					bit = defaultval;
+				visited.insert(bit);
+			}
 			return true;
 		}
 
