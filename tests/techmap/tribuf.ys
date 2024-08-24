@@ -94,3 +94,209 @@ cd
 
 equiv_make gold top equiv
 eval -table a -table b -table x -table y -assert q 1 equiv
+
+design -reset
+
+
+log mismatch width
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	output [1:0] b;
+
+	assign b = x ? a : 2'bz;
+	assign b[0] = x ? 1'bz : a[0];
+	assign b[1] = x ? 1'bz : a[1];
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -merge
+cd
+
+equiv_make gold top equiv
+eval -table a -table x -assert b 11 equiv
+
+design -reset
+
+
+log mismatch width 2
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	output [1:0] b;
+
+	assign b = x ? a : 2'bz;
+	assign b[0] = x ? 1'bz : a[0];
+	assign b[1] = x ? 1'bz : a[1];
+endmodule
+EOT
+
+copy top gold
+
+cd top
+
+# We first convert to tribuf, which will generate not(x) cells, we merge these
+# cells and them try to merge. Otherwise the tribuf merge pass will not detect
+# the different not(x) cells as the same enabled signal, and so it will create a
+# tribuf for each sigbit. By merging the not(x) cells into one, it will now
+# merge the 3 tribufs into one.
+tribuf
+opt_merge
+
+tribuf -merge
+cd
+
+equiv_make gold top equiv
+eval -table a -table x -assert b 11 equiv
+
+design -reset
+
+
+log splitted mux
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	input y;
+	output [1:0] q;
+	wire [1:0] b;
+
+	assign b = x ? a : 2'bzz;
+
+	assign q[0] = y ? b[0] : a[0];
+	assign q[1] = y ? b[1] : a[1];
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate
+cd
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 2'b11 equiv
+
+design -reset
+
+
+log splitted mux 2
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	input y;
+	output [1:0] q;
+	wire [1:0] b;
+
+	assign b[0] = y ? a[0] : 1'bz;
+	assign b[1] = y ? a[1] : 1'bz;
+
+	assign q = x ? b : a;
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate
+cd
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 2'b11 equiv
+
+design -reset
+
+
+log splitted mux 3
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	input y;
+	output [1:0] q;
+	wire [1:0] b;
+
+	assign b[0] = y ? a[0] : 1'bz;
+	assign b[1] = y ? a[1] : 1'bz;
+
+	assign q = x ? a : b;
+endmodule
+EOT
+
+copy top gold
+show -prefix a gold
+
+cd top
+tribuf -propagate
+cd
+show -prefix b top
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 2'b11 equiv
+
+design -reset
+exit
+
+
+log splitted tribuf
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	input y;
+	output [1:0] q;
+	wire [1:0] b;
+
+	assign b = x ? a : 2'bzz;
+
+	assign q[0] = y ? b[0] : 1'bz;
+	assign q[1] = y ? b[1] : 1'bz;
+endmodule
+EOT
+
+copy top gold
+
+cd top
+tribuf -propagate
+cd
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 2'b11 equiv
+
+design -reset
+
+
+log splitted tribuf 2
+read_verilog <<EOT
+module top(...);
+	input [1:0] a;
+	input x;
+	input y;
+	output [1:0] q;
+	wire [1:0] b;
+
+	assign b[0] = y ? b[0] : 1'bz;
+	assign b[1] = y ? b[1] : 1'bz;
+
+	assign q = x ? b : 2'bzz;
+endmodule
+EOT
+
+copy top gold
+show -prefix a gold
+
+cd top
+tribuf -propagate
+cd
+show -prefix b top
+
+equiv_make gold top equiv
+eval -table a -table b -table x -table y -assert q 2'b11 equiv
+
+design -reset

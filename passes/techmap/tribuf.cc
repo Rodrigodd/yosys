@@ -57,7 +57,7 @@ struct TribufWorker {
 	void run()
 	{
 		// SigSpecs that are outputs of tri-state buffers
-		pool<SigSpec> tribuf_signals;
+		pool<SigBit> tribuf_signals;
 
 		// SigSpecs that are inputs to mux or tri-state buffers cells
 		dict<SigSpec, vector<Cell *>> know_muxes;
@@ -70,21 +70,26 @@ struct TribufWorker {
 						output_bits.insert(bit);
 
 		// find all cells that drive a signal
-		dict<SigSpec, pool<Cell *>> driving_cells;
+		dict<SigBit, pool<Cell *>> driving_cells;
 		for (auto cell : module->selected_cells())
 			for (auto &conn : cell->connections())
 				if (cell->output(conn.first))
-					driving_cells[sigmap(conn.second)].insert(cell);
+					for (auto bit : sigmap(conn.second))
+						driving_cells[bit].insert(cell);
 
 		for (auto cell : module->selected_cells()) {
 			if (cell->type == ID($tribuf)) {
-				tribuf_signals.insert(sigmap(cell->getPort(ID::Y)));
-				know_muxes[sigmap(cell->getPort(ID::A))].push_back(cell);
+				for (auto bit : sigmap(cell->getPort(ID::Y)))
+					tribuf_signals.insert(bit);
+				for (auto bit : sigmap(cell->getPort(ID::A)))
+					know_muxes[bit].push_back(cell);
 			}
 
 			if (cell->type == ID($_TBUF_)) {
-				tribuf_signals.insert(sigmap(cell->getPort(ID::Y)));
-				know_muxes[sigmap(cell->getPort(ID::A))].push_back(cell);
+				for (auto bit : sigmap(cell->getPort(ID::Y)))
+					tribuf_signals.insert(bit);
+				for (auto bit : sigmap(cell->getPort(ID::A)))
+					know_muxes[bit].push_back(cell);
 			}
 
 			if (cell->type.in(ID($mux), ID($_MUX_))) {
@@ -95,13 +100,16 @@ struct TribufWorker {
 				bool is_b_all_z = is_all_z(cell->getPort(ID::B));
 
 				if (config.propagate && !is_a_all_z && !is_b_all_z) {
-					know_muxes[sigmap(cell->getPort(ID::A))].push_back(cell);
-					know_muxes[sigmap(cell->getPort(ID::B))].push_back(cell);
+					for (auto bit : sigmap(cell->getPort(ID::A)))
+						know_muxes[bit].push_back(cell);
+					for (auto bit : sigmap(cell->getPort(ID::B)))
+						know_muxes[bit].push_back(cell);
 				}
 
 				if (is_a_all_z && is_b_all_z) {
+					for (auto bit : sigmap(cell->getPort(ID::Y)))
+						driving_cells.at(bit).erase(cell);
 					module->remove(cell);
-					driving_cells.at(sigmap(cell->getPort(ID::Y))).erase(cell);
 					continue;
 				}
 
@@ -111,9 +119,11 @@ struct TribufWorker {
 					cell->unsetPort(ID::B);
 					cell->unsetPort(ID::S);
 					cell->type = tri_type;
-					tribuf_signals.insert(sigmap(cell->getPort(ID::Y)));
+					for (auto bit : sigmap(cell->getPort(ID::Y)))
+						tribuf_signals.insert(bit);
 					if (config.propagate)
-						know_muxes[sigmap(cell->getPort(ID::A))].push_back(cell);
+						for (auto bit : sigmap(cell->getPort(ID::A)))
+							know_muxes[bit].push_back(cell);
 					module->design->scratchpad_set_bool("tribuf.added_something", true);
 					continue;
 				}
@@ -123,9 +133,11 @@ struct TribufWorker {
 					cell->unsetPort(ID::B);
 					cell->unsetPort(ID::S);
 					cell->type = tri_type;
-					tribuf_signals.insert(sigmap(cell->getPort(ID::Y)));
+					for (auto bit : sigmap(cell->getPort(ID::Y)))
+						tribuf_signals.insert(bit);
 					if (config.propagate)
-						know_muxes[sigmap(cell->getPort(ID::A))].push_back(cell);
+						for (auto bit : sigmap(cell->getPort(ID::A)))
+							know_muxes[bit].push_back(cell);
 					module->design->scratchpad_set_bool("tribuf.added_something", true);
 					continue;
 				}
@@ -133,39 +145,51 @@ struct TribufWorker {
 		}
 
 		if (config.propagate) {
-			// SigSpecs that are outputs of a tri-state buffers and still need to
+			// SigSpecs that are driven by tri-state buffers and still need to
 			// be checked for propagation
-			pool<SigSpec> newly_added_tribufs;
+			pool<SigBit> added_tribufs;
 
 			for (auto &it : tribuf_signals) {
-				newly_added_tribufs.insert(it);
+				added_tribufs.insert(it);
 			}
-			pool<SigSpec> muxes_to_check;
+			pool<SigBit> current_tribufs;
 
-			while (!newly_added_tribufs.empty()) {
-				log("Propagating tri-state buffers through muxes: %d muxes left.\n", int(newly_added_tribufs.size()));
-				std::swap(newly_added_tribufs, muxes_to_check);
-				newly_added_tribufs.clear();
-				for (auto it : muxes_to_check) {
+			while (!added_tribufs.empty()) {
+				log("Propagating tri-state buffers through muxes: %d signals left.\n", int(added_tribufs.size()));
+				std::swap(added_tribufs, current_tribufs);
+				added_tribufs.clear();
+				for (auto it : current_tribufs) {
 					if (know_muxes.count(it) == 0)
 						continue;
 
 					// check that all driving cells are tri-state buffers
+					bool is_all_tribufs = true;
 					for (const auto &cell : driving_cells.at(it)) {
 						if (cell->type != ID($tribuf) && cell->type != ID($_TBUF_)) {
 							log("There is a non-tri-state buffer driving %s\n", log_signal(it));
+							is_all_tribufs = false;
+							break;
+						}
+					}
+					if (!is_all_tribufs)
+						continue;
+
+					if (driving_cells.at(it).size() > 1) {
+						if (config.merge_mode) {
+							merge(it, driving_cells);
+							log_assert(driving_cells.at(it).size() == 1);
+						} else {
+							log("There is more than one tri-state buffer driving %s\n", log_signal(it));
 							continue;
 						}
 					}
-
-					if (driving_cells.at(it).size() > 1)
-						merge(it, driving_cells.at(it));
 
 					if (tribuf_signals.count(it) != 1) {
 						log_warning("No tribuf for %s\n", log_signal(it));
 						continue;
 					}
 
+					log_assert(driving_cells.at(it).size() == 1);
 					RTLIL::Cell *tribuf = *driving_cells.at(it).begin();
 					tribuf_signals.erase(it);
 
@@ -178,60 +202,116 @@ struct TribufWorker {
 							IdString en2_port = cell->type == ID($mux) ? ID::EN : ID::E;
 							IdString tri_type = cell->type == ID($mux) ? ID($tribuf) : ID($_TBUF_);
 
-							if (sigmap(cell->getPort(ID::A)) == it) {
-								// convert: $tribuf(A, E, Y) -> $mux(Y, B, S, Y2)
-								//      to:                     $mux(A, B, S, Y3) -> $tribuf(Y3, E || S, Y2)
-								const RTLIL::SigSpec &y2 = cell->getPort(ID::Y);
-								RTLIL::Wire *y3 = module->addWire(NEW_ID, GetSize(tribuf->getPort(ID::Y)));
-
-								cell->setPort(ID::A, tribuf->getPort(ID::A));
-								RTLIL::Cell *new_tribuf = module->addTribuf(
-								  NEW_ID, y3, module->Or(NEW_ID, tribuf->getPort(en1_port), cell->getPort(ID::S)),
-								  y2);
-
-								{
-									RTLIL::SigSpec sy2 = sigmap(y2);
-									tribuf_signals.insert(sy2);
-									newly_added_tribufs.insert(sy2);
-									driving_cells.at(sy2).insert(new_tribuf);
-								}
-
-								cell->setPort(ID::Y, y3);
-							} else if (sigmap(cell->getPort(ID::B)) == it) {
-								// convert: $tribuf(A, E, Y) -> $mux(C, Y, S, Y2)
-								//      to:                     $mux(C, A, S, Y3) -> $tribuf(Y3, E || ~S, Y2)
-								const RTLIL::SigSpec &y2 = cell->getPort(ID::Y);
-								RTLIL::Wire *y3 = module->addWire(NEW_ID, GetSize(tribuf->getPort(ID::Y)));
-
-								cell->setPort(ID::B, tribuf->getPort(ID::A));
-								RTLIL::Cell *new_tribuf =
-								  module->addTribuf(NEW_ID, y3,
-										    module->Or(NEW_ID, tribuf->getPort(en1_port),
-											       module->Not(NEW_ID, cell->getPort(ID::S))),
-										    y2);
-
-								{
-									RTLIL::SigSpec sy2 = sigmap(y2);
-									tribuf_signals.insert(sy2);
-									newly_added_tribufs.insert(sy2);
-									driving_cells.at(sy2).insert(new_tribuf);
-								}
-
-								cell->setPort(ID::Y, y3);
-							} else
+							bool is_a;
+							if (sigmap(cell->getPort(ID::A)).extract(it).size() > 0) {
+								// convert: $tribuf(X, E, Y) -> $mux(Y, B, S, Y2)
+								//      to:                     $mux(X, B, S, Y3) -> $tribuf(Y3, E || S, Y2)
+								is_a = true;
+							} else if (sigmap(cell->getPort(ID::B)).extract(it).size() > 0) {
+								// convert: $tribuf(X, E, Y) -> $mux(A, Y, S, Y2)
+								//      to:                     $mux(A, X, S, Y3) -> $tribuf(Y3, E || ~S, Y2)
+								is_a = false;
+							} else {
 								log_warning("Mux %s is not driven by %s, but %s or %s\n", log_id(cell),
 									    log_signal(it), log_signal(cell->getPort(ID::A)),
 									    log_signal(cell->getPort(ID::B)));
+								continue;
+							}
+
+							auto output = sigmap(tribuf->getPort(ID::Y));
+							auto input = sigmap(cell->getPort(is_a ? ID::A : ID::B));
+							auto x = sigmap(tribuf->getPort(ID::A));
+
+							// get the intersection between input and output
+							auto extracted_y = output.extract(input);
+							auto extracted_x = output.extract(input, &x);
+
+							auto y2 = cell->getPort(ID::Y);
+							RTLIL::SigSpec extracted_y2 = input.extract(extracted_y, &y2);
+
+							RTLIL::Wire *y3 = module->addWire(NEW_ID, GetSize(extracted_y));
+
+							if (extracted_y.size() == input.size()) {
+								// just  modify the mux
+								cell->setPort(is_a ? ID::A : ID::B, extracted_x);
+								cell->setPort(ID::Y, y3);
+							} else {
+								// split the mux
+								auto a = cell->getPort(ID::A);
+								auto b = cell->getPort(ID::B);
+
+								auto extracted_a = input.extract(extracted_y, &a);
+								auto extracted_b = input.extract(extracted_y, &b);
+
+								a.remove(extracted_a);
+								b.remove(extracted_b);
+								y2.remove(extracted_y2);
+
+								cell->setPort(ID::A, a);
+								cell->setPort(ID::B, b);
+								cell->setPort(ID::Y, y2);
+								cell->setParam(ID::WIDTH, GetSize(extracted_y));
+
+								RTLIL::Cell *new_mux =
+								  module->addMux(NEW_ID, is_a ? extracted_x : extracted_a,
+										 is_a ? extracted_b : extracted_x, cell->getPort(ID::S), y3);
+							}
+
+							RTLIL::Cell *new_tribuf = module->addTribuf(
+							  NEW_ID, y3,
+							  module->Or(NEW_ID, tribuf->getPort(en1_port),
+								     is_a ? cell->getPort(ID::S) : module->Not(NEW_ID, cell->getPort(ID::S))),
+							  extracted_y2);
+
+							for (auto bit : sigmap(extracted_y2)) {
+								tribuf_signals.insert(bit);
+								added_tribufs.insert(bit);
+								driving_cells.at(bit).insert(new_tribuf);
+							}
 						}
 						if (cell->type == ID($tribuf) || cell->type == ID($_TBUF_)) {
+							// convert: $tribuf(A, E1, Y) -> $tribuf(Y, E2, Y2)
+							//      to:                      $tribuf(A, E1 && E2, Y2)
 							IdString en2_port = cell->type == ID($tribuf) ? ID::EN : ID::E;
 
-							if (sigmap(cell->getPort(ID::A)) == it) {
-								// convert: $tribuf(A, E1, Y) -> $tribuf(Y, E2, Y2)
-								//      to:                      $tribuf(A, E1 && E2, Y2)
-								cell->setPort(ID::A, tribuf->getPort(ID::A));
-								cell->setPort(
-								  en2_port, module->And(NEW_ID, tribuf->getPort(en1_port), cell->getPort(en2_port)));
+							auto output = sigmap(tribuf->getPort(ID::Y));
+							auto input = sigmap(cell->getPort(ID::A));
+
+							// get the intersection between the two signals
+							auto extracted_y = output.extract(input);
+
+							if (extracted_y.size() > 0) {
+								log("Propagating tribuf through tribuf: %s, %s, %s, \n", log_id(cell), log_signal(it),
+								    log_signal(cell->getPort(ID::A)));
+								auto a = output.extract(input, &tribuf->getPort(ID::A));
+								if (extracted_y == output) {
+									// just replace the second tribuf
+									cell->setPort(ID::A, a);
+									cell->setPort(en2_port, module->And(NEW_ID, tribuf->getPort(en1_port),
+													    cell->getPort(en2_port)));
+									cell->setParam(ID::WIDTH, GetSize(a));
+								} else {
+									// split the tribuf
+									auto y2 = cell->getPort(ID::Y);
+									auto extracted_y2 = output.extract(input, &y2);
+
+									input.remove(extracted_y);
+									output.remove(extracted_y2);
+									cell->setPort(ID::A, a);
+									cell->setPort(ID::Y, y2);
+									cell->setParam(ID::WIDTH, GetSize(a));
+
+									auto new_tribuf = module->addTribuf(
+									  NEW_ID, extracted_y,
+									  module->And(NEW_ID, tribuf->getPort(en1_port), cell->getPort(en2_port)),
+									  extracted_y2);
+
+									for (auto bit : sigmap(extracted_y2)) {
+										tribuf_signals.insert(bit);
+										added_tribufs.insert(bit);
+										driving_cells.at(bit).insert(new_tribuf);
+									}
+								}
 							} else {
 								log_warning("Tri-state %s is not driven by %s, but %s\n", log_id(cell),
 									    log_signal(it), log_signal(cell->getPort(ID::A)));
@@ -254,28 +334,202 @@ struct TribufWorker {
 						goto skip_signal;
 					}
 				}
-				merge(it, driving_cells.at(it));
+				merge(it, driving_cells);
 			skip_signal:;
 			}
 		}
 	}
 
-	void merge(RTLIL::SigSpec sig, pool<RTLIL::Cell *> &cells)
+	void merge(RTLIL::SigBit sig, dict<SigBit, pool<Cell *>> &driving_cells)
 	{
+		// sigmap.set(module);
 		bool no_tribuf = false;
 
 		if (config.logic_mode && !config.formal_mode) {
 			no_tribuf = true;
-			for (auto bit : sig)
-				if (output_bits.count(bit))
-					no_tribuf = false;
+			if (output_bits.count(sig))
+				no_tribuf = false;
 		}
 
 		if (config.formal_mode)
 			no_tribuf = true;
 
+		pool<Cell *> cells = driving_cells.at(sig);
+
 		if (GetSize(cells) <= 1 && !no_tribuf)
 			return;
+
+		log("Merging %d tri-state buffers driving %s.\n", GetSize(cells), log_signal(sig));
+		for (auto cell : cells)
+			log("  %s\n", log_id(cell->name));
+
+		// check if all driving cells are tri-state buffers
+		for (const auto &cell : cells) {
+			if (cell->type != ID($tribuf) && cell->type != ID($_TBUF_)) {
+				log("There is a non-tri-state buffer driving %s\n", log_signal(sig));
+				return;
+			}
+		}
+
+		// find all signals that the driving cells of this signal are also driving
+		pool<SigBit> siblings;
+		for (const auto &cell : cells) {
+			SigSpec y = sigmap(cell->getPort(ID::Y));
+			for (auto bit : y) {
+				siblings.insert(bit);
+				log("sibling %s\n", log_signal(bit));
+			}
+		}
+
+		// find all cells driving one of the siblings signals
+		pool<Cell *> drivers;
+		for (const auto bit : siblings) {
+			pool<Cell *> this_cells = driving_cells.at(bit);
+			for (auto cell : this_cells)
+				if (cell->type != ID($tribuf) && cell->type != ID($_TBUF_)) {
+					log("There is a non-tri-state buffer driving %s\n", log_signal(bit));
+					return;
+				}
+			drivers.insert(this_cells.begin(), this_cells.end());
+		}
+
+		for (auto cell : drivers)
+			log("driver %s (%s)\n", log_id(cell->name), log_id(cell->type));
+
+		// partition the cells by the enabled signal. If they share the enabled signal, they can be merged.
+		dict<SigBit, pool<Cell *>> partitions;
+		for (const auto cell : drivers) {
+			IdString en_port = cell->type == ID($tribuf) ? ID::EN : ID::E;
+			SigSpec e = sigmap(cell->getPort(en_port));
+			partitions[e.as_bit()].insert(cell);
+		}
+
+		for (auto pair : partitions) {
+			log("partition %s\n", log_signal(pair.first));
+			for (auto cell : pair.second)
+				log("  cell %s\n", log_id(cell));
+		}
+
+		// get the partitions that driven this sigbit
+		pool<SigBit> en_driving_this;
+		for (auto &pair : partitions) {
+			for (auto cell : cells) {
+				if (pair.second.count(cell) > 0) {
+					en_driving_this.insert(pair.first);
+					break;
+				}
+			}
+		}
+
+		log("en driving this\n");
+		for (auto bit : en_driving_this) {
+			log("  %s\n", log_signal(bit));
+		}
+
+		// considering the set of sigbits drived by each partition, find the set-intersection of them.
+		dict<SigBit, pool<SigBit>> partitions_sigbits;
+		for (auto sigbit : en_driving_this) {
+			pool<Cell *> this_cells = partitions.at(sigbit);
+			pool<SigBit> bits;
+			for (auto cell : this_cells) {
+				SigSpec e = sigmap(cell->getPort(ID::Y));
+				bits.insert(e.begin(), e.end());
+			}
+			partitions_sigbits[sigbit] = bits;
+		}
+
+		log("partitions sigbits\n");
+		for (auto &pair : partitions_sigbits) {
+			log("  %s\n", log_signal(pair.first));
+			for (auto bit : pair.second) {
+				log("    %s\n", log_signal(bit));
+			}
+		}
+
+		pool<SigBit> intersection;
+		for (SigBit bit : siblings) {
+			bool has_in_all = true;
+			for (auto &pair : partitions_sigbits) {
+				if (pair.second.count(bit) == 0) {
+					has_in_all = false;
+					break;
+				}
+			}
+			if (has_in_all)
+				intersection.insert(bit);
+		}
+		SigSpec intersection_sig(intersection);
+
+		log("intersection %s\n", log_signal(intersection_sig));
+
+		// now, for each tribuf, split them, or merge them, depending on the intersection
+		cells.clear();
+		for (auto en : en_driving_this) {
+			pool<Cell *> to_be_merged;
+			for (auto cell : partitions.at(en)) {
+				std::vector<int> matching_sigbits;
+				SigSpec output = sigmap(cell->getPort(ID::Y));
+				for (int i = 0; i < GetSize(output); i++) {
+					if (intersection.count(output[i]) > 0) {
+						matching_sigbits.push_back(i);
+					}
+				}
+				if ((int)matching_sigbits.size() == output.size() && matching_sigbits.size() == intersection.size()) {
+					// all bits of the tribuf matched, so we don't need to split or merge it.
+					to_be_merged.insert(cell);
+				} else if ((int)matching_sigbits.size() == output.size()) {
+					// all bits  of the tribuf matched, so we don't need to split it.
+					to_be_merged.insert(cell);
+				} else if (matching_sigbits.size() == 0) {
+					log_error("No matching bits?!\n");
+				} else {
+					// some of the bits matched, so we need to split the tribuf in two, one with matching bits and another with
+					// the non-mathcing ones. The mathcing tribuf will be merged with other cells in this partition.
+					SigSpec extracted_a;
+					SigSpec extracted_y;
+					SigSpec port_a = cell->getPort(ID::A);
+					SigSpec port_y = cell->getPort(ID::Y);
+					for (int i = GetSize(matching_sigbits) - 1; i >= 0; i--) {
+						if (matching_sigbits[matching_sigbits.size() - 1] == i) {
+							extracted_a.append(port_a.extract(i));
+							extracted_y.append(port_y.extract(i));
+							port_a.remove(i);
+							port_y.remove(i);
+							matching_sigbits.pop_back();
+						}
+					}
+
+					log("splited %s into (%s, %s) and (%s, %s)\n", log_id(cell->name), log_signal(extracted_a),
+					    log_signal(extracted_y), log_signal(port_a), log_signal(port_y));
+
+					log_assert(!port_a.empty() && !port_y.empty() && !extracted_y.empty() && !extracted_a.empty());
+					cell->setPort(ID::A, port_a);
+					cell->setPort(ID::Y, port_y);
+
+					RTLIL::Cell *new_tribuf = module->addTribuf(NEW_ID, extracted_a, en, extracted_y);
+					to_be_merged.insert(new_tribuf);
+				}
+			}
+			SigSpec merged_a;
+			SigSpec merged_y;
+			for (auto cell : to_be_merged) {
+				merged_a.append(cell->getPort(ID::A));
+				merged_y.append(cell->getPort(ID::Y));
+				for (auto bit : cell->getPort(ID::Y)) {
+					if (driving_cells.count(bit) > 0)
+						driving_cells.at(bit).erase(cell);
+				}
+				module->remove(cell);
+			}
+			log("merged %s into (%s, %s)\n", log_signal(en), log_signal(merged_a), log_signal(merged_y));
+			RTLIL::Cell *new_tribuf = module->addTribuf(NEW_ID, merged_a, en, merged_y);
+			cells.insert(new_tribuf);
+		}
+
+		log("cells:\n");
+		for (auto cell : cells) {
+			log("  %s\n", log_id(cell->name));
+		}
 
 		if (config.formal_mode && GetSize(cells) >= 2) {
 			for (auto cell : cells) {
@@ -317,14 +571,20 @@ struct TribufWorker {
 		}
 		cells.clear();
 
-		SigSpec muxout = GetSize(pmux_s) > 1 ? module->Pmux(NEW_ID, SigSpec(State::Sx, GetSize(sig)), pmux_b, pmux_s) : pmux_b;
+		SigSpec muxout = GetSize(pmux_s) > 1 ? module->Pmux(NEW_ID, SigSpec(State::Sx, GetSize(intersection_sig)), pmux_b, pmux_s) : pmux_b;
 
-		if (no_tribuf)
-			module->connect(sig, muxout);
-		else {
-			RTLIL::Cell *new_tribuf = module->addTribuf(NEW_ID, muxout, module->ReduceOr(NEW_ID, pmux_s), sig);
+		if (no_tribuf) {
+			log("Replaced tribuf driving %s by mux %s\n", log_signal(intersection_sig), log_signal(muxout));
+			module->connect(intersection_sig, muxout);
+		} else {
+			RTLIL::Cell *new_tribuf = module->addTribuf(NEW_ID, muxout, module->ReduceOr(NEW_ID, pmux_s), intersection_sig);
 			module->design->scratchpad_set_bool("tribuf.added_something", true);
-			cells.insert(new_tribuf);
+			for (auto bit : intersection_sig) {
+				pool<Cell *> &cells = driving_cells.at(bit);
+				cells.clear();
+				cells.insert(new_tribuf);
+			}
+			log("Merged tribufs driving %s into %s\n", log_signal(intersection_sig), new_tribuf->type.c_str());
 		}
 	}
 };
