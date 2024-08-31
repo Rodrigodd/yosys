@@ -64,7 +64,6 @@ struct ConstMap {
 				bit = RTLIL::Sx;
 			}
 
-			// log("Setting bit %s to %s\n", log_signal(from[i]), log_signal(bit));
 			database[from[i]] = bit;
 		}
 	}
@@ -145,7 +144,6 @@ struct ConstEval {
 	void set(RTLIL::SigSpec sig, RTLIL::Const value)
 	{
 		assign_map.apply(sig);
-		// log("Setting sig %s to %s\n", log_signal(sig), log_const(value));
 		values_map.add(sig, value);
 	}
 
@@ -157,7 +155,6 @@ struct ConstEval {
 
 	bool eval(RTLIL::Cell *cell, RTLIL::SigSpec &undef)
 	{
-		// log("evaluating cell %s (%s)\n", log_id(cell->name), log_id(cell->type));
 		if (cell->type == ID($lcu)) {
 			RTLIL::SigSpec sig_p = cell->getPort(ID::P);
 			RTLIL::SigSpec sig_g = cell->getPort(ID::G);
@@ -440,9 +437,7 @@ struct ConstEval {
 
 	bool eval(RTLIL::SigSpec &sig, RTLIL::SigSpec &undef, RTLIL::Cell *busy_cell = NULL)
 	{
-		const char *signal_name = log_signal(sig);
 		assign_map.apply(sig);
-		// log("evaluating sig %s (apply_map: %s)\n", signal_name, log_signal(sig));
 
 		bool fully_evaluated = true;
 		for (auto bit : sig) {
