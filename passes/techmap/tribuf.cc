@@ -36,6 +36,7 @@ struct TribufConfig {
 		logic_mode = false;
 		formal_mode = false;
 		propagate = false;
+		force = false;
 	}
 };
 
@@ -662,13 +663,15 @@ struct TribufWorker {
 					SigSpec extracted_y;
 					SigSpec port_a = cell->getPort(ID::A);
 					SigSpec port_y = cell->getPort(ID::Y);
-					for (int i = GetSize(matching_sigbits) - 1; i >= 0; i--) {
+					for (int i = GetSize(port_a) - 1; i >= 0; i--) {
 						if (matching_sigbits[matching_sigbits.size() - 1] == i) {
 							extracted_a.append(port_a.extract(i));
 							extracted_y.append(port_y.extract(i));
 							port_a.remove(i);
 							port_y.remove(i);
 							matching_sigbits.pop_back();
+							if (matching_sigbits.size() == 0)
+								break;
 						}
 					}
 
@@ -809,7 +812,7 @@ struct TribufPass : public Pass {
 		log("\n");
 		log("    -force\n");
 		log("        convert tri-state buffers to non-tristate logic, even if\n");
-		log("        they are output ports. this option depends on -logic or -formal\n");
+		log("        they are output ports. This option depends on -logic or -formal.\n");
 		log("\n");
 	}
 	void execute(std::vector<std::string> args, RTLIL::Design *design) override
