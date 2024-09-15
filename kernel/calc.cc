@@ -47,7 +47,7 @@ static BigInteger const2big(const RTLIL::Const &val, bool as_signed, int &undef_
 	State inv_sign_bit = RTLIL::State::S1;
 	size_t num_bits = val.bits.size();
 
-	if (as_signed && num_bits && val.bits[num_bits-1] == RTLIL::State::S1) {
+	if (as_signed && num_bits && val.bits[num_bits - 1] == RTLIL::State::S1) {
 		inv_sign_bit = RTLIL::State::S0;
 		sign = BigInteger::negative;
 		num_bits--;
@@ -73,16 +73,12 @@ static RTLIL::Const big2const(const BigInteger &val, int result_len, int undef_b
 	BigUnsigned mag = val.getMagnitude();
 	RTLIL::Const result(0, result_len);
 
-	if (!mag.isZero())
-	{
-		if (val.getSign() < 0)
-		{
+	if (!mag.isZero()) {
+		if (val.getSign() < 0) {
 			mag--;
 			for (int i = 0; i < result_len; i++)
 				result.bits[i] = mag.getBit(i) ? RTLIL::State::S0 : RTLIL::State::S1;
-		}
-		else
-		{
+		} else {
 			for (int i = 0; i < result_len; i++)
 				result.bits[i] = mag.getBit(i) ? RTLIL::State::S1 : RTLIL::State::S0;
 		}
@@ -99,37 +95,49 @@ static RTLIL::Const big2const(const BigInteger &val, int result_len, int undef_b
 
 static RTLIL::State logic_and(RTLIL::State a, RTLIL::State b)
 {
-	if (a == RTLIL::State::S0) return RTLIL::State::S0;
-	if (b == RTLIL::State::S0) return RTLIL::State::S0;
-	if (a != RTLIL::State::S1) return RTLIL::State::Sx;
-	if (b != RTLIL::State::S1) return RTLIL::State::Sx;
+	if (a == RTLIL::State::S0)
+		return RTLIL::State::S0;
+	if (b == RTLIL::State::S0)
+		return RTLIL::State::S0;
+	if (a != RTLIL::State::S1)
+		return RTLIL::State::Sx;
+	if (b != RTLIL::State::S1)
+		return RTLIL::State::Sx;
 	return RTLIL::State::S1;
 }
 
 static RTLIL::State logic_or(RTLIL::State a, RTLIL::State b)
 {
-	if (a == RTLIL::State::S1) return RTLIL::State::S1;
-	if (b == RTLIL::State::S1) return RTLIL::State::S1;
-	if (a != RTLIL::State::S0) return RTLIL::State::Sx;
-	if (b != RTLIL::State::S0) return RTLIL::State::Sx;
+	if (a == RTLIL::State::S1)
+		return RTLIL::State::S1;
+	if (b == RTLIL::State::S1)
+		return RTLIL::State::S1;
+	if (a != RTLIL::State::S0)
+		return RTLIL::State::Sx;
+	if (b != RTLIL::State::S0)
+		return RTLIL::State::Sx;
 	return RTLIL::State::S0;
 }
 
 static RTLIL::State logic_xor(RTLIL::State a, RTLIL::State b)
 {
-	if (a != RTLIL::State::S0 && a != RTLIL::State::S1) return RTLIL::State::Sx;
-	if (b != RTLIL::State::S0 && b != RTLIL::State::S1) return RTLIL::State::Sx;
+	if (a != RTLIL::State::S0 && a != RTLIL::State::S1)
+		return RTLIL::State::Sx;
+	if (b != RTLIL::State::S0 && b != RTLIL::State::S1)
+		return RTLIL::State::Sx;
 	return a != b ? RTLIL::State::S1 : RTLIL::State::S0;
 }
 
 static RTLIL::State logic_xnor(RTLIL::State a, RTLIL::State b)
 {
-	if (a != RTLIL::State::S0 && a != RTLIL::State::S1) return RTLIL::State::Sx;
-	if (b != RTLIL::State::S0 && b != RTLIL::State::S1) return RTLIL::State::Sx;
+	if (a != RTLIL::State::S0 && a != RTLIL::State::S1)
+		return RTLIL::State::Sx;
+	if (b != RTLIL::State::S0 && b != RTLIL::State::S1)
+		return RTLIL::State::Sx;
 	return a == b ? RTLIL::State::S1 : RTLIL::State::S0;
 }
 
-RTLIL::Const RTLIL::const_not(const RTLIL::Const &arg1, const RTLIL::Const&, bool signed1, bool, int result_len)
+RTLIL::Const RTLIL::const_not(const RTLIL::Const &arg1, const RTLIL::Const &, bool signed1, bool, int result_len)
 {
 	if (result_len < 0)
 		result_len = arg1.bits.size();
@@ -150,8 +158,8 @@ RTLIL::Const RTLIL::const_not(const RTLIL::Const &arg1, const RTLIL::Const&, boo
 	return result;
 }
 
-static RTLIL::Const logic_wrapper(RTLIL::State(*logic_func)(RTLIL::State, RTLIL::State),
-		RTLIL::Const arg1, RTLIL::Const arg2, bool signed1, bool signed2, int result_len = -1)
+static RTLIL::Const logic_wrapper(RTLIL::State (*logic_func)(RTLIL::State, RTLIL::State), RTLIL::Const arg1, RTLIL::Const arg2, bool signed1,
+				  bool signed2, int result_len = -1)
 {
 	if (result_len < 0)
 		result_len = max(arg1.bits.size(), arg2.bits.size());
@@ -189,7 +197,8 @@ RTLIL::Const RTLIL::const_xnor(const RTLIL::Const &arg1, const RTLIL::Const &arg
 	return logic_wrapper(logic_xnor, arg1, arg2, signed1, signed2, result_len);
 }
 
-static RTLIL::Const logic_reduce_wrapper(RTLIL::State initial, RTLIL::State(*logic_func)(RTLIL::State, RTLIL::State), const RTLIL::Const &arg1, int result_len)
+static RTLIL::Const logic_reduce_wrapper(RTLIL::State initial, RTLIL::State (*logic_func)(RTLIL::State, RTLIL::State), const RTLIL::Const &arg1,
+					 int result_len)
 {
 	RTLIL::State temp = initial;
 
@@ -202,22 +211,22 @@ static RTLIL::Const logic_reduce_wrapper(RTLIL::State initial, RTLIL::State(*log
 	return result;
 }
 
-RTLIL::Const RTLIL::const_reduce_and(const RTLIL::Const &arg1, const RTLIL::Const&, bool, bool, int result_len)
+RTLIL::Const RTLIL::const_reduce_and(const RTLIL::Const &arg1, const RTLIL::Const &, bool, bool, int result_len)
 {
 	return logic_reduce_wrapper(RTLIL::State::S1, logic_and, arg1, result_len);
 }
 
-RTLIL::Const RTLIL::const_reduce_or(const RTLIL::Const &arg1, const RTLIL::Const&, bool, bool, int result_len)
+RTLIL::Const RTLIL::const_reduce_or(const RTLIL::Const &arg1, const RTLIL::Const &, bool, bool, int result_len)
 {
 	return logic_reduce_wrapper(RTLIL::State::S0, logic_or, arg1, result_len);
 }
 
-RTLIL::Const RTLIL::const_reduce_xor(const RTLIL::Const &arg1, const RTLIL::Const&, bool, bool, int result_len)
+RTLIL::Const RTLIL::const_reduce_xor(const RTLIL::Const &arg1, const RTLIL::Const &, bool, bool, int result_len)
 {
 	return logic_reduce_wrapper(RTLIL::State::S0, logic_xor, arg1, result_len);
 }
 
-RTLIL::Const RTLIL::const_reduce_xnor(const RTLIL::Const &arg1, const RTLIL::Const&, bool, bool, int result_len)
+RTLIL::Const RTLIL::const_reduce_xnor(const RTLIL::Const &arg1, const RTLIL::Const &, bool, bool, int result_len)
 {
 	RTLIL::Const buffer = logic_reduce_wrapper(RTLIL::State::S0, logic_xor, arg1, result_len);
 	if (!buffer.bits.empty()) {
@@ -229,12 +238,12 @@ RTLIL::Const RTLIL::const_reduce_xnor(const RTLIL::Const &arg1, const RTLIL::Con
 	return buffer;
 }
 
-RTLIL::Const RTLIL::const_reduce_bool(const RTLIL::Const &arg1, const RTLIL::Const&, bool, bool, int result_len)
+RTLIL::Const RTLIL::const_reduce_bool(const RTLIL::Const &arg1, const RTLIL::Const &, bool, bool, int result_len)
 {
 	return logic_reduce_wrapper(RTLIL::State::S0, logic_or, arg1, result_len);
 }
 
-RTLIL::Const RTLIL::const_logic_not(const RTLIL::Const &arg1, const RTLIL::Const&, bool signed1, bool, int result_len)
+RTLIL::Const RTLIL::const_logic_not(const RTLIL::Const &arg1, const RTLIL::Const &, bool signed1, bool, int result_len)
 {
 	int undef_bit_pos_a = -1;
 	BigInteger a = const2big(arg1, signed1, undef_bit_pos_a);
@@ -280,7 +289,8 @@ RTLIL::Const RTLIL::const_logic_or(const RTLIL::Const &arg1, const RTLIL::Const 
 // If `signed2` is true, `arg2` is interpreted as a signed integer; a negative `arg2` will cause a shift in the opposite direction.
 // Any required bits outside the bounds of `arg1` are padded with `vacant_bits` unless `sign_ext` is true, in which case any bits outside the left
 // bounds are filled with the leftmost bit of `arg1` (arithmetic shift).
-static RTLIL::Const const_shift_worker(const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool sign_ext, bool signed2, int direction, int result_len, RTLIL::State vacant_bits = RTLIL::State::S0)
+static RTLIL::Const const_shift_worker(const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool sign_ext, bool signed2, int direction, int result_len,
+				       RTLIL::State vacant_bits = RTLIL::State::S0)
 {
 	int undef_bit_pos = -1;
 	BigInteger offset = const2big(arg2, signed2, undef_bit_pos) * direction;
@@ -480,7 +490,8 @@ RTLIL::Const RTLIL::const_div(const RTLIL::Const &arg1, const RTLIL::Const &arg2
 	bool result_neg = (a.getSign() == BigInteger::negative) != (b.getSign() == BigInteger::negative);
 	a = a.getSign() == BigInteger::negative ? -a : a;
 	b = b.getSign() == BigInteger::negative ? -b : b;
-	return big2const(result_neg ? -(a / b) : (a / b), result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()), min(undef_bit_pos, 0));
+	return big2const(result_neg ? -(a / b) : (a / b), result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()),
+			 min(undef_bit_pos, 0));
 }
 
 // truncating modulo
@@ -494,7 +505,8 @@ RTLIL::Const RTLIL::const_mod(const RTLIL::Const &arg1, const RTLIL::Const &arg2
 	bool result_neg = a.getSign() == BigInteger::negative;
 	a = a.getSign() == BigInteger::negative ? -a : a;
 	b = b.getSign() == BigInteger::negative ? -b : b;
-	return big2const(result_neg ? -(a % b) : (a % b), result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()), min(undef_bit_pos, 0));
+	return big2const(result_neg ? -(a % b) : (a % b), result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()),
+			 min(undef_bit_pos, 0));
 }
 
 RTLIL::Const RTLIL::const_divfloor(const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool signed1, bool signed2, int result_len)
@@ -556,16 +568,14 @@ RTLIL::Const RTLIL::const_pow(const RTLIL::Const &arg1, const RTLIL::Const &arg2
 	if (a == 0 && b > 0)
 		return RTLIL::Const(RTLIL::State::S0, result_len);
 
-	if (b < 0)
-	{
+	if (b < 0) {
 		if (a < -1 || a > 1)
 			y = 0;
 		if (a == -1)
 			y = (-b % 2) == 0 ? 1 : -1;
 	}
 
-	if (b > 0)
-	{
+	if (b > 0) {
 		// Power-modulo with 2^result_len as modulus
 		BigInteger modulus = 1;
 		int modulus_bits = (result_len >= 0 ? result_len : 1024);
@@ -593,7 +603,7 @@ RTLIL::Const RTLIL::const_pow(const RTLIL::Const &arg1, const RTLIL::Const &arg2
 	return big2const(y, result_len >= 0 ? result_len : max(arg1.bits.size(), arg2.bits.size()), min(undef_bit_pos, 0));
 }
 
-RTLIL::Const RTLIL::const_pos(const RTLIL::Const &arg1, const RTLIL::Const&, bool signed1, bool, int result_len)
+RTLIL::Const RTLIL::const_pos(const RTLIL::Const &arg1, const RTLIL::Const &, bool signed1, bool, int result_len)
 {
 	RTLIL::Const arg1_ext = arg1;
 	extend_u0(arg1_ext, result_len, signed1);
@@ -601,7 +611,7 @@ RTLIL::Const RTLIL::const_pos(const RTLIL::Const &arg1, const RTLIL::Const&, boo
 	return arg1_ext;
 }
 
-RTLIL::Const RTLIL::const_neg(const RTLIL::Const &arg1, const RTLIL::Const&, bool signed1, bool, int result_len)
+RTLIL::Const RTLIL::const_neg(const RTLIL::Const &arg1, const RTLIL::Const &, bool signed1, bool, int result_len)
 {
 	RTLIL::Const arg1_ext = arg1;
 	RTLIL::Const zero(RTLIL::State::S0, 1);
@@ -634,7 +644,8 @@ RTLIL::Const RTLIL::const_pmux(const RTLIL::Const &arg1, const RTLIL::Const &arg
 
 	for (int i = 0; i < arg3.size(); i++)
 		if (arg3[i] == State::S1)
-			return RTLIL::Const(std::vector<RTLIL::State>(arg2.bits.begin() + i*arg1.bits.size(), arg2.bits.begin() + (i+1)*arg1.bits.size()));
+			return RTLIL::Const(
+			  std::vector<RTLIL::State>(arg2.bits.begin() + i * arg1.bits.size(), arg2.bits.begin() + (i + 1) * arg1.bits.size()));
 
 	log_abort(); // unreachable
 }
@@ -643,17 +654,16 @@ RTLIL::Const RTLIL::const_bmux(const RTLIL::Const &arg1, const RTLIL::Const &arg
 {
 	std::vector<RTLIL::State> t = arg1.bits;
 
-	for (int i = GetSize(arg2)-1; i >= 0; i--)
-	{
+	for (int i = GetSize(arg2) - 1; i >= 0; i--) {
 		RTLIL::State sel = arg2.bits.at(i);
 		std::vector<RTLIL::State> new_t;
 		if (sel == State::S0)
-			new_t = std::vector<RTLIL::State>(t.begin(), t.begin() + GetSize(t)/2);
+			new_t = std::vector<RTLIL::State>(t.begin(), t.begin() + GetSize(t) / 2);
 		else if (sel == State::S1)
-			new_t = std::vector<RTLIL::State>(t.begin() + GetSize(t)/2, t.end());
+			new_t = std::vector<RTLIL::State>(t.begin() + GetSize(t) / 2, t.end());
 		else
-			for (int j = 0; j < GetSize(t)/2; j++)
-				new_t.push_back(t[j] == t[j + GetSize(t)/2] ? t[j] : RTLIL::Sx);
+			for (int j = 0; j < GetSize(t) / 2; j++)
+				new_t.push_back(t[j] == t[j + GetSize(t) / 2] ? t[j] : RTLIL::Sx);
 		t.swap(new_t);
 	}
 
@@ -665,8 +675,7 @@ RTLIL::Const RTLIL::const_demux(const RTLIL::Const &arg1, const RTLIL::Const &ar
 	int width = GetSize(arg1);
 	int s_width = GetSize(arg2);
 	std::vector<RTLIL::State> res;
-	for (int i = 0; i < (1 << s_width); i++)
-	{
+	for (int i = 0; i < (1 << s_width); i++) {
 		bool ne = false;
 		bool x = false;
 		for (int j = 0; j < s_width; j++) {
@@ -714,4 +723,3 @@ RTLIL::Const RTLIL::const_bwmux(const RTLIL::Const &arg1, const RTLIL::Const &ar
 }
 
 YOSYS_NAMESPACE_END
-

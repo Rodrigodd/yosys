@@ -21,22 +21,23 @@
  *
  */
 
-#include "kernel/register.h"
 #include "kernel/celltypes.h"
-#include "kernel/log.h"
-#include "kernel/sigtools.h"
 #include "kernel/ff.h"
-#include "kernel/mem.h"
 #include "kernel/fmt.h"
-#include <string>
-#include <sstream>
-#include <set>
+#include "kernel/log.h"
+#include "kernel/mem.h"
+#include "kernel/register.h"
+#include "kernel/sigtools.h"
 #include <map>
+#include <set>
+#include <sstream>
+#include <string>
 
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
 
-bool verbose, norename, noattr, attr2comment, noexpr, nodec, nohex, nostr, extmem, defparam, decimal, siminit, systemverilog, simple_lhs, noparallelcase;
+bool verbose, norename, noattr, attr2comment, noexpr, nodec, nohex, nostr, extmem, defparam, decimal, siminit, systemverilog, simple_lhs,
+  noparallelcase;
 int auto_name_counter, auto_name_offset, auto_name_digits, extmem_counter;
 dict<RTLIL::IdString, int> auto_name_map;
 std::set<RTLIL::IdString> reg_wires;
@@ -58,13 +59,13 @@ void reset_auto_counter_id(RTLIL::IdString id, bool may_rename)
 		return;
 
 	for (int i = 2; str[i] != 0; i++) {
-		if (str[i] == '_' && str[i+1] == 0)
+		if (str[i] == '_' && str[i + 1] == 0)
 			continue;
 		if (str[i] < '0' || str[i] > '9')
 			return;
 	}
 
-	int num = atoi(str+2);
+	int num = atoi(str + 2);
 	if (num >= auto_name_offset)
 		auto_name_offset = num + 1;
 }
@@ -89,18 +90,16 @@ void reset_auto_counter(RTLIL::Module *module)
 		reset_auto_counter_id(it->second->name, false);
 
 	auto_name_digits = 1;
-	for (size_t i = 10; i < auto_name_offset + auto_name_map.size(); i = i*10)
+	for (size_t i = 10; i < auto_name_offset + auto_name_map.size(); i = i * 10)
 		auto_name_digits++;
 
 	if (verbose)
 		for (auto it = auto_name_map.begin(); it != auto_name_map.end(); ++it)
-			log("  renaming `%s' to `%s_%0*d_'.\n", it->first.c_str(), auto_prefix.c_str(), auto_name_digits, auto_name_offset + it->second);
+			log("  renaming `%s' to `%s_%0*d_'.\n", it->first.c_str(), auto_prefix.c_str(), auto_name_digits,
+			    auto_name_offset + it->second);
 }
 
-std::string next_auto_id()
-{
-	return stringf("%s_%0*d_", auto_prefix.c_str(), auto_name_digits, auto_name_offset + auto_name_counter++);
-}
+std::string next_auto_id() { return stringf("%s_%0*d_", auto_prefix.c_str(), auto_name_digits, auto_name_offset + auto_name_counter++); }
 
 std::string id(RTLIL::IdString internal_id, bool may_rename = true)
 {
@@ -116,8 +115,7 @@ std::string id(RTLIL::IdString internal_id, bool may_rename = true)
 	if ('0' <= *str && *str <= '9')
 		do_escape = true;
 
-	for (int i = 0; str[i]; i++)
-	{
+	for (int i = 0; str[i]; i++) {
 		if ('0' <= str[i] && str[i] <= '9')
 			continue;
 		if ('a' <= str[i] && str[i] <= 'z')
@@ -131,28 +129,255 @@ std::string id(RTLIL::IdString internal_id, bool may_rename = true)
 	}
 
 	static const pool<string> keywords = {
-		// IEEE 1800-2017 Annex B
-		"accept_on", "alias", "always", "always_comb", "always_ff", "always_latch", "and", "assert", "assign", "assume", "automatic", "before",
-		"begin", "bind", "bins", "binsof", "bit", "break", "buf", "bufif0", "bufif1", "byte", "case", "casex", "casez", "cell", "chandle",
-		"checker", "class", "clocking", "cmos", "config", "const", "constraint", "context", "continue", "cover", "covergroup", "coverpoint",
-		"cross", "deassign", "default", "defparam", "design", "disable", "dist", "do", "edge", "else", "end", "endcase", "endchecker",
-		"endclass", "endclocking", "endconfig", "endfunction", "endgenerate", "endgroup", "endinterface", "endmodule", "endpackage",
-		"endprimitive", "endprogram", "endproperty", "endsequence", "endspecify", "endtable", "endtask", "enum", "event", "eventually",
-		"expect", "export", "extends", "extern", "final", "first_match", "for", "force", "foreach", "forever", "fork", "forkjoin", "function",
-		"generate", "genvar", "global", "highz0", "highz1", "if", "iff", "ifnone", "ignore_bins", "illegal_bins", "implements", "implies",
-		"import", "incdir", "include", "initial", "inout", "input", "inside", "instance", "int", "integer", "interconnect", "interface",
-		"intersect", "join", "join_any", "join_none", "large", "let", "liblist", "library", "local", "localparam", "logic", "longint",
-		"macromodule", "matches", "medium", "modport", "module", "nand", "negedge", "nettype", "new", "nexttime", "nmos", "nor",
-		"noshowcancelled", "not", "notif0", "notif1", "null", "or", "output", "package", "packed", "parameter", "pmos", "posedge", "primitive",
-		"priority", "program", "property", "protected", "pull0", "pull1", "pulldown", "pullup", "pulsestyle_ondetect", "pulsestyle_onevent",
-		"pure", "rand", "randc", "randcase", "randsequence", "rcmos", "real", "realtime", "ref", "reg", "reject_on", "release", "repeat",
-		"restrict", "return", "rnmos", "rpmos", "rtran", "rtranif0", "rtranif1", "s_always", "s_eventually", "s_nexttime", "s_until",
-		"s_until_with", "scalared", "sequence", "shortint", "shortreal", "showcancelled", "signed", "small", "soft", "solve", "specify",
-		"specparam", "static", "string", "strong", "strong0", "strong1", "struct", "super", "supply0", "supply1", "sync_accept_on",
-		"sync_reject_on", "table", "tagged", "task", "this", "throughout", "time", "timeprecision", "timeunit", "tran", "tranif0", "tranif1",
-		"tri", "tri0", "tri1", "triand", "trior", "trireg", "type", "typedef", "union", "unique", "unique0", "unsigned", "until", "until_with",
-		"untyped", "use", "uwire", "var", "vectored", "virtual", "void", "wait", "wait_order", "wand", "weak", "weak0", "weak1", "while",
-		"wildcard", "wire", "with", "within", "wor", "xnor", "xor",
+	  // IEEE 1800-2017 Annex B
+	  "accept_on",
+	  "alias",
+	  "always",
+	  "always_comb",
+	  "always_ff",
+	  "always_latch",
+	  "and",
+	  "assert",
+	  "assign",
+	  "assume",
+	  "automatic",
+	  "before",
+	  "begin",
+	  "bind",
+	  "bins",
+	  "binsof",
+	  "bit",
+	  "break",
+	  "buf",
+	  "bufif0",
+	  "bufif1",
+	  "byte",
+	  "case",
+	  "casex",
+	  "casez",
+	  "cell",
+	  "chandle",
+	  "checker",
+	  "class",
+	  "clocking",
+	  "cmos",
+	  "config",
+	  "const",
+	  "constraint",
+	  "context",
+	  "continue",
+	  "cover",
+	  "covergroup",
+	  "coverpoint",
+	  "cross",
+	  "deassign",
+	  "default",
+	  "defparam",
+	  "design",
+	  "disable",
+	  "dist",
+	  "do",
+	  "edge",
+	  "else",
+	  "end",
+	  "endcase",
+	  "endchecker",
+	  "endclass",
+	  "endclocking",
+	  "endconfig",
+	  "endfunction",
+	  "endgenerate",
+	  "endgroup",
+	  "endinterface",
+	  "endmodule",
+	  "endpackage",
+	  "endprimitive",
+	  "endprogram",
+	  "endproperty",
+	  "endsequence",
+	  "endspecify",
+	  "endtable",
+	  "endtask",
+	  "enum",
+	  "event",
+	  "eventually",
+	  "expect",
+	  "export",
+	  "extends",
+	  "extern",
+	  "final",
+	  "first_match",
+	  "for",
+	  "force",
+	  "foreach",
+	  "forever",
+	  "fork",
+	  "forkjoin",
+	  "function",
+	  "generate",
+	  "genvar",
+	  "global",
+	  "highz0",
+	  "highz1",
+	  "if",
+	  "iff",
+	  "ifnone",
+	  "ignore_bins",
+	  "illegal_bins",
+	  "implements",
+	  "implies",
+	  "import",
+	  "incdir",
+	  "include",
+	  "initial",
+	  "inout",
+	  "input",
+	  "inside",
+	  "instance",
+	  "int",
+	  "integer",
+	  "interconnect",
+	  "interface",
+	  "intersect",
+	  "join",
+	  "join_any",
+	  "join_none",
+	  "large",
+	  "let",
+	  "liblist",
+	  "library",
+	  "local",
+	  "localparam",
+	  "logic",
+	  "longint",
+	  "macromodule",
+	  "matches",
+	  "medium",
+	  "modport",
+	  "module",
+	  "nand",
+	  "negedge",
+	  "nettype",
+	  "new",
+	  "nexttime",
+	  "nmos",
+	  "nor",
+	  "noshowcancelled",
+	  "not",
+	  "notif0",
+	  "notif1",
+	  "null",
+	  "or",
+	  "output",
+	  "package",
+	  "packed",
+	  "parameter",
+	  "pmos",
+	  "posedge",
+	  "primitive",
+	  "priority",
+	  "program",
+	  "property",
+	  "protected",
+	  "pull0",
+	  "pull1",
+	  "pulldown",
+	  "pullup",
+	  "pulsestyle_ondetect",
+	  "pulsestyle_onevent",
+	  "pure",
+	  "rand",
+	  "randc",
+	  "randcase",
+	  "randsequence",
+	  "rcmos",
+	  "real",
+	  "realtime",
+	  "ref",
+	  "reg",
+	  "reject_on",
+	  "release",
+	  "repeat",
+	  "restrict",
+	  "return",
+	  "rnmos",
+	  "rpmos",
+	  "rtran",
+	  "rtranif0",
+	  "rtranif1",
+	  "s_always",
+	  "s_eventually",
+	  "s_nexttime",
+	  "s_until",
+	  "s_until_with",
+	  "scalared",
+	  "sequence",
+	  "shortint",
+	  "shortreal",
+	  "showcancelled",
+	  "signed",
+	  "small",
+	  "soft",
+	  "solve",
+	  "specify",
+	  "specparam",
+	  "static",
+	  "string",
+	  "strong",
+	  "strong0",
+	  "strong1",
+	  "struct",
+	  "super",
+	  "supply0",
+	  "supply1",
+	  "sync_accept_on",
+	  "sync_reject_on",
+	  "table",
+	  "tagged",
+	  "task",
+	  "this",
+	  "throughout",
+	  "time",
+	  "timeprecision",
+	  "timeunit",
+	  "tran",
+	  "tranif0",
+	  "tranif1",
+	  "tri",
+	  "tri0",
+	  "tri1",
+	  "triand",
+	  "trior",
+	  "trireg",
+	  "type",
+	  "typedef",
+	  "union",
+	  "unique",
+	  "unique0",
+	  "unsigned",
+	  "until",
+	  "until_with",
+	  "untyped",
+	  "use",
+	  "uwire",
+	  "var",
+	  "vectored",
+	  "virtual",
+	  "void",
+	  "wait",
+	  "wait_order",
+	  "wand",
+	  "weak",
+	  "weak0",
+	  "weak1",
+	  "while",
+	  "wildcard",
+	  "wire",
+	  "with",
+	  "within",
+	  "wor",
+	  "xnor",
+	  "xor",
 	};
 	if (keywords.count(str))
 		do_escape = true;
@@ -175,13 +400,13 @@ bool is_reg_wire(RTLIL::SigSpec sig, std::string &reg_name)
 	reg_name = id(chunk.wire->name);
 	if (sig.size() != chunk.wire->width) {
 		if (sig.size() == 1)
-			reg_name += stringf("[%d]", chunk.wire->start_offset +  chunk.offset);
+			reg_name += stringf("[%d]", chunk.wire->start_offset + chunk.offset);
 		else if (chunk.wire->upto)
 			reg_name += stringf("[%d:%d]", (chunk.wire->width - (chunk.offset + chunk.width - 1) - 1) + chunk.wire->start_offset,
-					(chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
+					    (chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
 		else
-			reg_name += stringf("[%d:%d]", chunk.wire->start_offset +  chunk.offset + chunk.width - 1,
-					chunk.wire->start_offset +  chunk.offset);
+			reg_name +=
+			  stringf("[%d:%d]", chunk.wire->start_offset + chunk.offset + chunk.width - 1, chunk.wire->start_offset + chunk.offset);
 	}
 
 	return true;
@@ -202,7 +427,7 @@ void dump_const(std::ostream &f, const RTLIL::Const &data, int width = -1, int o
 	if ((data.flags & RTLIL::CONST_FLAG_STRING) == 0 || width != (int)data.bits.size()) {
 		if (width == 32 && !no_decimal && !nodec) {
 			int32_t val = 0;
-			for (int i = offset+width-1; i >= offset; i--) {
+			for (int i = offset + width - 1; i >= offset; i--) {
 				log_assert(i < (int)data.bits.size());
 				if (data.bits[i] != State::S0 && data.bits[i] != State::S1)
 					goto dump_hex;
@@ -216,19 +441,30 @@ void dump_const(std::ostream &f, const RTLIL::Const &data, int width = -1, int o
 			else
 				f << stringf("32'%sd%u", set_signed ? "s" : "", val);
 		} else {
-	dump_hex:
+		dump_hex:
 			if (nohex)
 				goto dump_bin;
 			vector<char> bin_digits, hex_digits;
-			for (int i = offset; i < offset+width; i++) {
+			for (int i = offset; i < offset + width; i++) {
 				log_assert(i < (int)data.bits.size());
 				switch (data.bits[i]) {
-				case State::S0: bin_digits.push_back('0'); break;
-				case State::S1: bin_digits.push_back('1'); break;
-				case RTLIL::Sx: bin_digits.push_back('x'); break;
-				case RTLIL::Sz: bin_digits.push_back('z'); break;
-				case RTLIL::Sa: bin_digits.push_back('?'); break;
-				case RTLIL::Sm: log_error("Found marker state in final netlist.");
+				case State::S0:
+					bin_digits.push_back('0');
+					break;
+				case State::S1:
+					bin_digits.push_back('1');
+					break;
+				case RTLIL::Sx:
+					bin_digits.push_back('x');
+					break;
+				case RTLIL::Sz:
+					bin_digits.push_back('z');
+					break;
+				case RTLIL::Sa:
+					bin_digits.push_back('?');
+					break;
+				case RTLIL::Sm:
+					log_error("Found marker state in final netlist.");
 				}
 			}
 			if (GetSize(bin_digits) == 0)
@@ -238,12 +474,11 @@ void dump_const(std::ostream &f, const RTLIL::Const &data, int width = -1, int o
 					bin_digits.push_back('0');
 				else
 					bin_digits.push_back(bin_digits.back());
-			for (int i = 0; i < GetSize(bin_digits); i += 4)
-			{
-				char bit_3 = bin_digits[i+3];
-				char bit_2 = bin_digits[i+2];
-				char bit_1 = bin_digits[i+1];
-				char bit_0 = bin_digits[i+0];
+			for (int i = 0; i < GetSize(bin_digits); i += 4) {
+				char bit_3 = bin_digits[i + 3];
+				char bit_2 = bin_digits[i + 2];
+				char bit_1 = bin_digits[i + 1];
+				char bit_0 = bin_digits[i + 0];
 				if (bit_3 == 'x' || bit_2 == 'x' || bit_1 == 'x' || bit_0 == 'x') {
 					if (bit_3 != 'x' || bit_2 != 'x' || bit_1 != 'x' || bit_0 != 'x')
 						goto dump_bin;
@@ -262,27 +497,38 @@ void dump_const(std::ostream &f, const RTLIL::Const &data, int width = -1, int o
 					hex_digits.push_back('?');
 					continue;
 				}
-				int val = 8*(bit_3 - '0') + 4*(bit_2 - '0') + 2*(bit_1 - '0') + (bit_0 - '0');
+				int val = 8 * (bit_3 - '0') + 4 * (bit_2 - '0') + 2 * (bit_1 - '0') + (bit_0 - '0');
 				hex_digits.push_back(val < 10 ? '0' + val : 'a' + val - 10);
 			}
 			f << stringf("%d'%sh", width, set_signed ? "s" : "");
-			for (int i = GetSize(hex_digits)-1; i >= 0; i--)
+			for (int i = GetSize(hex_digits) - 1; i >= 0; i--)
 				f << hex_digits[i];
 		}
 		if (0) {
-	dump_bin:
+		dump_bin:
 			f << stringf("%d'%sb", width, set_signed ? "s" : "");
 			if (width == 0)
 				f << stringf("0");
-			for (int i = offset+width-1; i >= offset; i--) {
+			for (int i = offset + width - 1; i >= offset; i--) {
 				log_assert(i < (int)data.bits.size());
 				switch (data.bits[i]) {
-				case State::S0: f << stringf("0"); break;
-				case State::S1: f << stringf("1"); break;
-				case RTLIL::Sx: f << stringf("x"); break;
-				case RTLIL::Sz: f << stringf("z"); break;
-				case RTLIL::Sa: f << stringf("?"); break;
-				case RTLIL::Sm: log_error("Found marker state in final netlist.");
+				case State::S0:
+					f << stringf("0");
+					break;
+				case State::S1:
+					f << stringf("1");
+					break;
+				case RTLIL::Sx:
+					f << stringf("x");
+					break;
+				case RTLIL::Sz:
+					f << stringf("z");
+					break;
+				case RTLIL::Sa:
+					f << stringf("?");
+					break;
+				case RTLIL::Sm:
+					log_error("Found marker state in final netlist.");
 				}
 			}
 		}
@@ -301,7 +547,7 @@ void dump_const(std::ostream &f, const RTLIL::Const &data, int width = -1, int o
 				f << stringf("\\\"");
 			else if (str[i] == '\\')
 				f << stringf("\\\\");
-			else if (str[i] == '/' && escape_comment && i > 0 && str[i-1] == '*')
+			else if (str[i] == '/' && escape_comment && i > 0 && str[i - 1] == '*')
 				f << stringf("\\/");
 			else
 				f << str[i];
@@ -340,18 +586,18 @@ void dump_sigchunk(std::ostream &f, const RTLIL::SigChunk &chunk, bool no_decima
 			f << stringf("%s", id(chunk.wire->name).c_str());
 		} else if (chunk.width == 1) {
 			if (chunk.wire->upto)
-				f << stringf("%s[%d]", id(chunk.wire->name).c_str(), (chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
+				f << stringf("%s[%d]", id(chunk.wire->name).c_str(),
+					     (chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
 			else
 				f << stringf("%s[%d]", id(chunk.wire->name).c_str(), chunk.offset + chunk.wire->start_offset);
 		} else {
 			if (chunk.wire->upto)
 				f << stringf("%s[%d:%d]", id(chunk.wire->name).c_str(),
-						(chunk.wire->width - (chunk.offset + chunk.width - 1) - 1) + chunk.wire->start_offset,
-						(chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
+					     (chunk.wire->width - (chunk.offset + chunk.width - 1) - 1) + chunk.wire->start_offset,
+					     (chunk.wire->width - chunk.offset - 1) + chunk.wire->start_offset);
 			else
-				f << stringf("%s[%d:%d]", id(chunk.wire->name).c_str(),
-						(chunk.offset + chunk.width - 1) + chunk.wire->start_offset,
-						chunk.offset + chunk.wire->start_offset);
+				f << stringf("%s[%d:%d]", id(chunk.wire->name).c_str(), (chunk.offset + chunk.width - 1) + chunk.wire->start_offset,
+					     chunk.offset + chunk.wire->start_offset);
 		}
 	}
 }
@@ -376,15 +622,19 @@ void dump_sigspec(std::ostream &f, const RTLIL::SigSpec &sig)
 	}
 }
 
-void dump_attributes(std::ostream &f, std::string indent, dict<RTLIL::IdString, RTLIL::Const> &attributes, std::string term = "\n", bool modattr = false, bool regattr = false, bool as_comment = false)
+void dump_attributes(std::ostream &f, std::string indent, dict<RTLIL::IdString, RTLIL::Const> &attributes, std::string term = "\n",
+		     bool modattr = false, bool regattr = false, bool as_comment = false)
 {
 	if (noattr)
 		return;
 	if (attr2comment)
 		as_comment = true;
 	for (auto it = attributes.begin(); it != attributes.end(); ++it) {
-		if (it->first == ID::init && regattr) continue;
-		f << stringf("%s" "%s %s", indent.c_str(), as_comment ? "/*" : "(*", id(it->first).c_str());
+		if (it->first == ID::init && regattr)
+			continue;
+		f << stringf("%s"
+			     "%s %s",
+			     indent.c_str(), as_comment ? "/*" : "(*", id(it->first).c_str());
 		f << stringf(" = ");
 		if (modattr && (it->second == State::S0 || it->second == Const(0)))
 			f << stringf(" 0 ");
@@ -421,20 +671,30 @@ void dump_wire(std::ostream &f, std::string indent, RTLIL::Wire *wire)
 			range = stringf(" [%d:%d]", wire->width - 1 + wire->start_offset, wire->start_offset);
 	}
 	if (wire->port_input && !wire->port_output)
-		f << stringf("%s" "input%s %s;\n", indent.c_str(), range.c_str(), id(wire->name).c_str());
+		f << stringf("%s"
+			     "input%s %s;\n",
+			     indent.c_str(), range.c_str(), id(wire->name).c_str());
 	if (!wire->port_input && wire->port_output)
-		f << stringf("%s" "output%s %s;\n", indent.c_str(), range.c_str(), id(wire->name).c_str());
+		f << stringf("%s"
+			     "output%s %s;\n",
+			     indent.c_str(), range.c_str(), id(wire->name).c_str());
 	if (wire->port_input && wire->port_output)
-		f << stringf("%s" "inout%s %s;\n", indent.c_str(), range.c_str(), id(wire->name).c_str());
+		f << stringf("%s"
+			     "inout%s %s;\n",
+			     indent.c_str(), range.c_str(), id(wire->name).c_str());
 	if (reg_wires.count(wire->name)) {
-		f << stringf("%s" "reg%s %s", indent.c_str(), range.c_str(), id(wire->name).c_str());
+		f << stringf("%s"
+			     "reg%s %s",
+			     indent.c_str(), range.c_str(), id(wire->name).c_str());
 		if (wire->attributes.count(ID::init)) {
 			f << stringf(" = ");
 			dump_const(f, wire->attributes.at(ID::init));
 		}
 		f << stringf(";\n");
 	} else
-		f << stringf("%s" "wire%s %s;\n", indent.c_str(), range.c_str(), id(wire->name).c_str());
+		f << stringf("%s"
+			     "wire%s %s;\n",
+			     indent.c_str(), range.c_str(), id(wire->name).c_str());
 #endif
 }
 
@@ -443,22 +703,21 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 	std::string mem_id = id(mem.memid);
 
 	dump_attributes(f, indent, mem.attributes);
-	f << stringf("%s" "reg [%d:0] %s [%d:%d];\n", indent.c_str(), mem.width-1, mem_id.c_str(), mem.size+mem.start_offset-1, mem.start_offset);
+	f << stringf("%s"
+		     "reg [%d:0] %s [%d:%d];\n",
+		     indent.c_str(), mem.width - 1, mem_id.c_str(), mem.size + mem.start_offset - 1, mem.start_offset);
 
 	// for memory block make something like:
 	//  reg [7:0] memid [3:0];
 	//  initial begin
 	//    memid[0] = ...
 	//  end
-	if (!mem.inits.empty())
-	{
-		if (extmem)
-		{
+	if (!mem.inits.empty()) {
+		if (extmem) {
 			std::string extmem_filename = stringf("%s-%d.mem", extmem_prefix.c_str(), extmem_counter++);
 
 			std::string extmem_filename_esc;
-			for (auto c : extmem_filename)
-			{
+			for (auto c : extmem_filename) {
 				if (c == '\n')
 					extmem_filename_esc += "\\n";
 				else if (c == '\t')
@@ -472,62 +731,75 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 				else
 					extmem_filename_esc += c;
 			}
-			f << stringf("%s" "initial $readmemb(\"%s\", %s);\n", indent.c_str(), extmem_filename_esc.c_str(), mem_id.c_str());
+			f << stringf("%s"
+				     "initial $readmemb(\"%s\", %s);\n",
+				     indent.c_str(), extmem_filename_esc.c_str(), mem_id.c_str());
 
 			std::ofstream extmem_f(extmem_filename, std::ofstream::trunc);
 			if (extmem_f.fail())
 				log_error("Can't open file `%s' for writing: %s\n", extmem_filename.c_str(), strerror(errno));
-			else
-			{
+			else {
 				Const data = mem.get_init_data();
-				for (int i=0; i<mem.size; i++)
-				{
-					RTLIL::Const element = data.extract(i*mem.width, mem.width);
-					for (int j=0; j<element.size(); j++)
-					{
-						switch (element[element.size()-j-1])
-						{
-							case State::S0: extmem_f << '0'; break;
-							case State::S1: extmem_f << '1'; break;
-							case State::Sx: extmem_f << 'x'; break;
-							case State::Sz: extmem_f << 'z'; break;
-							case State::Sa: extmem_f << '_'; break;
-							case State::Sm: log_error("Found marker state in final netlist.");
+				for (int i = 0; i < mem.size; i++) {
+					RTLIL::Const element = data.extract(i * mem.width, mem.width);
+					for (int j = 0; j < element.size(); j++) {
+						switch (element[element.size() - j - 1]) {
+						case State::S0:
+							extmem_f << '0';
+							break;
+						case State::S1:
+							extmem_f << '1';
+							break;
+						case State::Sx:
+							extmem_f << 'x';
+							break;
+						case State::Sz:
+							extmem_f << 'z';
+							break;
+						case State::Sa:
+							extmem_f << '_';
+							break;
+						case State::Sm:
+							log_error("Found marker state in final netlist.");
 						}
 					}
 					extmem_f << '\n';
 				}
 			}
-		}
-		else
-		{
-			f << stringf("%s" "initial begin\n", indent.c_str());
+		} else {
+			f << stringf("%s"
+				     "initial begin\n",
+				     indent.c_str());
 			for (auto &init : mem.inits) {
 				int words = GetSize(init.data) / mem.width;
 				int start = init.addr.as_int();
-				for (int i=0; i<words; i++)
-				{
-					for (int j = 0; j < mem.width; j++)
-					{
+				for (int i = 0; i < words; i++) {
+					for (int j = 0; j < mem.width; j++) {
 						if (init.en[j] != State::S1)
 							continue;
 
 						int start_j = j, width = 1;
 
-						while (j+1 < mem.width && init.en[j+1] == State::S1)
+						while (j + 1 < mem.width && init.en[j + 1] == State::S1)
 							j++, width++;
 
 						if (width == mem.width) {
-							f << stringf("%s" "  %s[%d] = ", indent.c_str(), mem_id.c_str(), i + start);
+							f << stringf("%s"
+								     "  %s[%d] = ",
+								     indent.c_str(), mem_id.c_str(), i + start);
 						} else {
-							f << stringf("%s" "  %s[%d][%d:%d] = ", indent.c_str(), mem_id.c_str(), i + start, j, start_j);
+							f << stringf("%s"
+								     "  %s[%d][%d:%d] = ",
+								     indent.c_str(), mem_id.c_str(), i + start, j, start_j);
 						}
-						dump_const(f, init.data.extract(i*mem.width+start_j, width));
+						dump_const(f, init.data.extract(i * mem.width + start_j, width));
 						f << stringf(";\n");
 					}
 				}
 			}
-			f << stringf("%s" "end\n", indent.c_str());
+			f << stringf("%s"
+				     "end\n",
+				     indent.c_str());
 		}
 	}
 
@@ -541,10 +813,8 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 	std::vector<std::string> lof_reg_declarations;
 
 	// read ports
-	for (auto &port : mem.rd_ports)
-	{
-		if (port.clk_enable)
-		{
+	for (auto &port : mem.rd_ports) {
+		if (port.clk_enable) {
 			{
 				std::ostringstream os;
 				dump_sigspec(os, port.clk);
@@ -569,15 +839,14 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 			if (port.en != State::S1 || port.srst != State::S0 || port.arst != State::S0 || !port.init_value.is_fully_undef())
 				trans_use_addr = false;
 
-			if (!trans_use_addr)
-			{
+			if (!trans_use_addr) {
 				// for clocked read ports make something like:
 				//   reg [..] temp_id;
 				//   always @(posedge clk)
 				//      if (rd_en) temp_id <= array_reg[r_addr];
 				//   assign r_data = temp_id;
 				std::string temp_id = next_auto_id();
-				lof_reg_declarations.push_back( stringf("reg [%d:0] %s;\n", port.data.size() - 1, temp_id.c_str()) );
+				lof_reg_declarations.push_back(stringf("reg [%d:0] %s;\n", port.data.size() - 1, temp_id.c_str()));
 
 				bool has_indent = false;
 
@@ -596,7 +865,9 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 					os << stringf(")\n");
 					clk_to_lof_body[clk_domain_str].push_back(os.str());
 					std::ostringstream os2;
-					os2 << stringf("%s" "%s <= ", indent.c_str(), temp_id.c_str());
+					os2 << stringf("%s"
+						       "%s <= ",
+						       indent.c_str(), temp_id.c_str());
 					dump_sigspec(os2, port.srst_value);
 					os2 << ";\n";
 					clk_to_lof_body[clk_domain_str].push_back(os2.str());
@@ -619,8 +890,7 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 					has_indent = true;
 				}
 
-				for (int sub = 0; sub < (1 << port.wide_log2); sub++)
-				{
+				for (int sub = 0; sub < (1 << port.wide_log2); sub++) {
 					SigSpec addr = port.sub_addr(sub);
 					std::ostringstream os;
 					if (has_indent)
@@ -676,11 +946,11 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 								os2 << indent;
 							os2 << indent;
 							os2 << temp_id;
-							if (epos-pos != GetSize(port.data))
-								os2 << stringf("[%d:%d]", rsub * mem.width + epos-1, rsub * mem.width + pos);
+							if (epos - pos != GetSize(port.data))
+								os2 << stringf("[%d:%d]", rsub * mem.width + epos - 1, rsub * mem.width + pos);
 							os2 << " <= ";
 							if (port.transparency_mask[i])
-								dump_sigspec(os2, wport.data.extract(wsub * mem.width + pos, epos-pos));
+								dump_sigspec(os2, wport.data.extract(wsub * mem.width + pos, epos - pos));
 							else
 								dump_sigspec(os2, Const(State::Sx, epos - pos));
 							os2 << ";\n";
@@ -691,8 +961,7 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 					}
 				}
 
-				if (port.srst != State::S0 && port.ce_over_srst)
-				{
+				if (port.srst != State::S0 && port.ce_over_srst) {
 					std::ostringstream os;
 					if (has_indent)
 						os << indent;
@@ -703,7 +972,9 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 					std::ostringstream os2;
 					if (has_indent)
 						os2 << indent;
-					os2 << stringf("%s" "%s <= ", indent.c_str(), temp_id.c_str());
+					os2 << stringf("%s"
+						       "%s <= ",
+						       indent.c_str(), temp_id.c_str());
 					dump_sigspec(os2, port.srst_value);
 					os2 << ";\n";
 					clk_to_lof_body[clk_domain_str].push_back(os2.str());
@@ -712,8 +983,7 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 				if (has_indent)
 					clk_to_lof_body[clk_domain_str].push_back("end\n");
 
-				if (!port.init_value.is_fully_undef())
-				{
+				if (!port.init_value.is_fully_undef()) {
 					std::ostringstream os;
 					dump_sigspec(os, port.init_value);
 					std::string line = stringf("initial %s = %s;\n", temp_id.c_str(), os.str().c_str());
@@ -726,28 +996,26 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 					std::string line = stringf("assign %s = %s;\n", os.str().c_str(), temp_id.c_str());
 					clk_to_lof_body[""].push_back(line);
 				}
-			}
-			else
-			{
+			} else {
 				// for rd-transparent read-ports make something like:
 				//   reg [..] temp_id;
 				//   always @(posedge clk)
 				//     temp_id <= r_addr;
 				//   assign r_data = array_reg[temp_id];
 				std::string temp_id = next_auto_id();
-				lof_reg_declarations.push_back( stringf("reg [%d:0] %s;\n", port.addr.size() - 1 - port.wide_log2, temp_id.c_str()) );
+				lof_reg_declarations.push_back(stringf("reg [%d:0] %s;\n", port.addr.size() - 1 - port.wide_log2, temp_id.c_str()));
 				{
 					std::ostringstream os;
 					dump_sigspec(os, port.addr.extract_end(port.wide_log2));
 					std::string line = stringf("%s <= %s;\n", temp_id.c_str(), os.str().c_str());
 					clk_to_lof_body[clk_domain_str].push_back(line);
 				}
-				for (int sub = 0; sub < (1 << port.wide_log2); sub++)
-				{
+				for (int sub = 0; sub < (1 << port.wide_log2); sub++) {
 					std::ostringstream os;
 					os << "assign ";
 					dump_sigspec(os, port.data.extract(sub * mem.width, mem.width));
-					os << stringf(" = %s[", mem_id.c_str());;
+					os << stringf(" = %s[", mem_id.c_str());
+					;
 					if (port.wide_log2) {
 						Const addr_lo;
 						for (int i = 0; i < port.wide_log2; i++)
@@ -767,8 +1035,7 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 		} else {
 			// for non-clocked read-ports make something like:
 			//   assign r_data = array_reg[r_addr];
-			for (int sub = 0; sub < (1 << port.wide_log2); sub++)
-			{
+			for (int sub = 0; sub < (1 << port.wide_log2); sub++) {
 				SigSpec addr = port.sub_addr(sub);
 
 				std::ostringstream os, os2;
@@ -788,8 +1055,7 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 	// 3. We want each process to be as small as possible, to avoid extra
 	//    priorities inferred on the other end.
 	pool<int> wr_ports_done;
-	for (int ridx = 0; ridx < GetSize(mem.wr_ports); ridx++)
-	{
+	for (int ridx = 0; ridx < GetSize(mem.wr_ports); ridx++) {
 		if (wr_ports_done.count(ridx))
 			continue;
 
@@ -800,38 +1066,39 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 		wr_ports_now.insert(ridx);
 
 		// Transitively fill list of ports in this process by following priority edges.
-		while (true)
-		{
+		while (true) {
 			bool changed = false;
 
 			for (int i = 0; i < GetSize(mem.wr_ports); i++)
-			for (int j = 0; j < i; j++)
-			if (mem.wr_ports[i].priority_mask[j])
-			{
-				if (wr_ports_now.count(i) && !wr_ports_now.count(j)) {
-					wr_ports_now.insert(j);
-					changed = true;
-				}
-				if (!wr_ports_now.count(i) && wr_ports_now.count(j)) {
-					wr_ports_now.insert(i);
-					changed = true;
-				}
-			}
+				for (int j = 0; j < i; j++)
+					if (mem.wr_ports[i].priority_mask[j]) {
+						if (wr_ports_now.count(i) && !wr_ports_now.count(j)) {
+							wr_ports_now.insert(j);
+							changed = true;
+						}
+						if (!wr_ports_now.count(i) && wr_ports_now.count(j)) {
+							wr_ports_now.insert(i);
+							changed = true;
+						}
+					}
 
 			if (!changed)
 				break;
 		}
 
 		if (root.clk_enable) {
-			f << stringf("%s" "always%s @(%sedge ", indent.c_str(), systemverilog ? "_ff" : "", root.clk_polarity ? "pos" : "neg");
+			f << stringf("%s"
+				     "always%s @(%sedge ",
+				     indent.c_str(), systemverilog ? "_ff" : "", root.clk_polarity ? "pos" : "neg");
 			dump_sigspec(f, root.clk);
 			f << ") begin\n";
 		} else {
-			f << stringf("%s" "always%s begin\n", indent.c_str(), systemverilog ? "_latch" : " @*");
+			f << stringf("%s"
+				     "always%s begin\n",
+				     indent.c_str(), systemverilog ? "_latch" : " @*");
 		}
 
-		for (int pidx = 0; pidx < GetSize(mem.wr_ports); pidx++)
-		{
+		for (int pidx = 0; pidx < GetSize(mem.wr_ports); pidx++) {
 			if (!wr_ports_now.count(pidx))
 				continue;
 			wr_ports_done.insert(pidx);
@@ -847,23 +1114,20 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 			//   always @(posedge clk)
 			//      if (wr_en_bit) memid[w_addr][??] <= w_data[??];
 			//   ...
-			for (int sub = 0; sub < (1 << port.wide_log2); sub++)
-			{
+			for (int sub = 0; sub < (1 << port.wide_log2); sub++) {
 				SigSpec addr = port.sub_addr(sub);
-				for (int i = 0; i < mem.width; i++)
-				{
+				for (int i = 0; i < mem.width; i++) {
 					int start_i = i, width = 1;
 					SigBit wen_bit = port.en[sub * mem.width + i];
 
-					while (i+1 < mem.width && active_sigmap(port.en[sub * mem.width + i+1]) == active_sigmap(wen_bit))
+					while (i + 1 < mem.width && active_sigmap(port.en[sub * mem.width + i + 1]) == active_sigmap(wen_bit))
 						i++, width++;
 
 					if (wen_bit == State::S0)
 						continue;
 
 					f << stringf("%s%s", indent.c_str(), indent.c_str());
-					if (wen_bit != State::S1)
-					{
+					if (wen_bit != State::S1) {
 						f << stringf("if (");
 						dump_sigspec(f, wen_bit);
 						f << stringf(")\n");
@@ -881,7 +1145,9 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 			}
 		}
 
-		f << stringf("%s" "end\n", indent.c_str());
+		f << stringf("%s"
+			     "end\n",
+			     indent.c_str());
 	}
 	// Output Verilog that looks something like this:
 	// reg [..] _3_;
@@ -902,38 +1168,53 @@ void dump_memory(std::ostream &f, std::string indent, Mem &mem)
 	// assign D2DATA <= memory[D2ADDR];
 
 	// the reg ... definitions
-	for(auto &reg : lof_reg_declarations)
-	{
-		f << stringf("%s" "%s", indent.c_str(), reg.c_str());
+	for (auto &reg : lof_reg_declarations) {
+		f << stringf("%s"
+			     "%s",
+			     indent.c_str(), reg.c_str());
 	}
 	// the block of expressions by clock domain
-	for(auto &pair : clk_to_lof_body)
-	{
+	for (auto &pair : clk_to_lof_body) {
 		std::string clk_domain = pair.first;
 		std::vector<std::string> lof_lines = pair.second;
-		if( clk_domain != "")
-		{
-			f << stringf("%s" "always%s @(%s) begin\n", indent.c_str(), systemverilog ? "_ff" : "", clk_domain.c_str());
+		if (clk_domain != "") {
+			f << stringf("%s"
+				     "always%s @(%s) begin\n",
+				     indent.c_str(), systemverilog ? "_ff" : "", clk_domain.c_str());
 			bool has_arst = clk_to_arst_cond.count(clk_domain) != 0;
 			if (has_arst) {
-				f << stringf("%s%s" "if (%s) begin\n", indent.c_str(), indent.c_str(), clk_to_arst_cond[clk_domain].c_str());
-				for(auto &line : clk_to_arst_body[clk_domain])
-					f << stringf("%s%s%s" "%s", indent.c_str(), indent.c_str(), indent.c_str(), line.c_str());
-				f << stringf("%s%s" "end else begin\n", indent.c_str(), indent.c_str());
-				for(auto &line : lof_lines)
-					f << stringf("%s%s%s" "%s", indent.c_str(), indent.c_str(), indent.c_str(), line.c_str());
-				f << stringf("%s%s" "end\n", indent.c_str(), indent.c_str());
+				f << stringf("%s%s"
+					     "if (%s) begin\n",
+					     indent.c_str(), indent.c_str(), clk_to_arst_cond[clk_domain].c_str());
+				for (auto &line : clk_to_arst_body[clk_domain])
+					f << stringf("%s%s%s"
+						     "%s",
+						     indent.c_str(), indent.c_str(), indent.c_str(), line.c_str());
+				f << stringf("%s%s"
+					     "end else begin\n",
+					     indent.c_str(), indent.c_str());
+				for (auto &line : lof_lines)
+					f << stringf("%s%s%s"
+						     "%s",
+						     indent.c_str(), indent.c_str(), indent.c_str(), line.c_str());
+				f << stringf("%s%s"
+					     "end\n",
+					     indent.c_str(), indent.c_str());
 			} else {
-				for(auto &line : lof_lines)
-					f << stringf("%s%s" "%s", indent.c_str(), indent.c_str(), line.c_str());
+				for (auto &line : lof_lines)
+					f << stringf("%s%s"
+						     "%s",
+						     indent.c_str(), indent.c_str(), line.c_str());
 			}
-			f << stringf("%s" "end\n", indent.c_str());
-		}
-		else
-		{
+			f << stringf("%s"
+				     "end\n",
+				     indent.c_str());
+		} else {
 			// the non-clocked assignments
-			for(auto &line : lof_lines)
-				f << stringf("%s" "%s", indent.c_str(), line.c_str());
+			for (auto &line : lof_lines)
+				f << stringf("%s"
+					     "%s",
+					     indent.c_str(), line.c_str());
 		}
 	}
 }
@@ -950,8 +1231,8 @@ void dump_cell_expr_port(std::ostream &f, RTLIL::Cell *cell, std::string port, b
 
 std::string cellname(RTLIL::Cell *cell)
 {
-	if (!norename && cell->name[0] == '$' && RTLIL::builtin_ff_cell_types().count(cell->type) && cell->hasPort(ID::Q) && !cell->type.in(ID($ff), ID($_FF_)))
-	{
+	if (!norename && cell->name[0] == '$' && RTLIL::builtin_ff_cell_types().count(cell->type) && cell->hasPort(ID::Q) &&
+	    !cell->type.in(ID($ff), ID($_FF_))) {
 		RTLIL::SigSpec sig = cell->getPort(ID::Q);
 		if (GetSize(sig) != 1 || sig.is_fully_const())
 			goto no_special_reg_name;
@@ -973,20 +1254,20 @@ std::string cellname(RTLIL::Cell *cell)
 			cell_name += stringf("[%d]", wire->start_offset + sig[0].offset);
 
 		if (active_module && active_module->count_id(cell_name) > 0)
-				goto no_special_reg_name;
+			goto no_special_reg_name;
 
 		return id(cell_name);
-	}
-	else
-	{
-no_special_reg_name:
+	} else {
+	no_special_reg_name:
 		return id(cell->name).c_str();
 	}
 }
 
 void dump_cell_expr_uniop(std::ostream &f, std::string indent, RTLIL::Cell *cell, std::string op)
 {
-	f << stringf("%s" "assign ", indent.c_str());
+	f << stringf("%s"
+		     "assign ",
+		     indent.c_str());
 	dump_sigspec(f, cell->getPort(ID::Y));
 	f << stringf(" = %s ", op.c_str());
 	dump_attributes(f, "", cell->attributes, " ");
@@ -996,7 +1277,9 @@ void dump_cell_expr_uniop(std::ostream &f, std::string indent, RTLIL::Cell *cell
 
 void dump_cell_expr_binop(std::ostream &f, std::string indent, RTLIL::Cell *cell, std::string op)
 {
-	f << stringf("%s" "assign ", indent.c_str());
+	f << stringf("%s"
+		     "assign ",
+		     indent.c_str());
 	dump_sigspec(f, cell->getPort(ID::Y));
 	f << stringf(" = ");
 	dump_cell_expr_port(f, cell, "A", true);
@@ -1012,7 +1295,9 @@ void dump_cell_expr_print(std::ostream &f, std::string indent, const RTLIL::Cell
 	fmt.parse_rtlil(cell);
 	std::vector<VerilogFmtArg> args = fmt.emit_verilog();
 
-	f << stringf("%s" "$write(", indent.c_str());
+	f << stringf("%s"
+		     "$write(",
+		     indent.c_str());
 	bool first = true;
 	for (auto &arg : args) {
 		if (first) {
@@ -1021,21 +1306,22 @@ void dump_cell_expr_print(std::ostream &f, std::string indent, const RTLIL::Cell
 			f << ", ";
 		}
 		switch (arg.type) {
-			case VerilogFmtArg::STRING:
-				dump_const(f, RTLIL::Const(arg.str));
-				break;
-			case VerilogFmtArg::INTEGER:
-				f << (arg.signed_ ? "$signed(" : "$unsigned(");
-				dump_sigspec(f, arg.sig);
-				f << ")";
-				break;
-			case VerilogFmtArg::TIME:
-				if (arg.realtime)
-					f << "$realtime";
-				else
-					f << "$time";
-				break;
-			default: log_abort();
+		case VerilogFmtArg::STRING:
+			dump_const(f, RTLIL::Const(arg.str));
+			break;
+		case VerilogFmtArg::INTEGER:
+			f << (arg.signed_ ? "$signed(" : "$unsigned(");
+			dump_sigspec(f, arg.sig);
+			f << ")";
+			break;
+		case VerilogFmtArg::TIME:
+			if (arg.realtime)
+				f << "$realtime";
+			else
+				f << "$time";
+			break;
+		default:
+			log_abort();
 		}
 	}
 	f << stringf(");\n");
@@ -1045,15 +1331,25 @@ void dump_cell_expr_check(std::ostream &f, std::string indent, const RTLIL::Cell
 {
 	std::string flavor = cell->getParam(ID(FLAVOR)).decode_string();
 	if (flavor == "assert")
-		f << stringf("%s" "assert (", indent.c_str());
+		f << stringf("%s"
+			     "assert (",
+			     indent.c_str());
 	else if (flavor == "assume")
-		f << stringf("%s" "assume (", indent.c_str());
+		f << stringf("%s"
+			     "assume (",
+			     indent.c_str());
 	else if (flavor == "live")
-		f << stringf("%s" "assert (eventually ", indent.c_str());
+		f << stringf("%s"
+			     "assert (eventually ",
+			     indent.c_str());
 	else if (flavor == "fair")
-		f << stringf("%s" "assume (eventually ", indent.c_str());
+		f << stringf("%s"
+			     "assume (eventually ",
+			     indent.c_str());
 	else if (flavor == "cover")
-		f << stringf("%s" "cover (", indent.c_str());
+		f << stringf("%s"
+			     "cover (",
+			     indent.c_str());
 	dump_sigspec(f, cell->getPort(ID::A));
 	f << stringf(");\n");
 }
@@ -1061,7 +1357,9 @@ void dump_cell_expr_check(std::ostream &f, std::string indent, const RTLIL::Cell
 bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 {
 	if (cell->type == ID($_NOT_)) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		f << stringf("~");
@@ -1072,7 +1370,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type == ID($_BUF_)) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_cell_expr_port(f, cell, "A", false);
@@ -1081,7 +1381,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type.in(ID($_AND_), ID($_NAND_), ID($_OR_), ID($_NOR_), ID($_XOR_), ID($_XNOR_), ID($_ANDNOT_), ID($_ORNOT_))) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		if (cell->type.in(ID($_NAND_), ID($_NOR_), ID($_XNOR_)))
@@ -1106,7 +1408,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type == ID($_MUX_)) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_cell_expr_port(f, cell, "S", false);
@@ -1120,7 +1424,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type == ID($_NMUX_)) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = !(");
 		dump_cell_expr_port(f, cell, "S", false);
@@ -1134,7 +1440,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type.in(ID($_AOI3_), ID($_OAI3_))) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ~((");
 		dump_cell_expr_port(f, cell, "A", false);
@@ -1149,7 +1457,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	if (cell->type.in(ID($_AOI4_), ID($_OAI4_))) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ~((");
 		dump_cell_expr_port(f, cell, "A", false);
@@ -1165,39 +1475,45 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-#define HANDLE_UNIOP(_type, _operator) \
-	if (cell->type ==_type) { dump_cell_expr_uniop(f, indent, cell, _operator); return true; }
-#define HANDLE_BINOP(_type, _operator) \
-	if (cell->type ==_type) { dump_cell_expr_binop(f, indent, cell, _operator); return true; }
+#define HANDLE_UNIOP(_type, _operator)                                                                                                               \
+	if (cell->type == _type) {                                                                                                                   \
+		dump_cell_expr_uniop(f, indent, cell, _operator);                                                                                    \
+		return true;                                                                                                                         \
+	}
+#define HANDLE_BINOP(_type, _operator)                                                                                                               \
+	if (cell->type == _type) {                                                                                                                   \
+		dump_cell_expr_binop(f, indent, cell, _operator);                                                                                    \
+		return true;                                                                                                                         \
+	}
 
 	HANDLE_UNIOP(ID($not), "~")
 	HANDLE_UNIOP(ID($pos), "+")
 	HANDLE_UNIOP(ID($neg), "-")
 
-	HANDLE_BINOP(ID($and),  "&")
-	HANDLE_BINOP(ID($or),   "|")
-	HANDLE_BINOP(ID($xor),  "^")
+	HANDLE_BINOP(ID($and), "&")
+	HANDLE_BINOP(ID($or), "|")
+	HANDLE_BINOP(ID($xor), "^")
 	HANDLE_BINOP(ID($xnor), "~^")
 
-	HANDLE_UNIOP(ID($reduce_and),  "&")
-	HANDLE_UNIOP(ID($reduce_or),   "|")
-	HANDLE_UNIOP(ID($reduce_xor),  "^")
+	HANDLE_UNIOP(ID($reduce_and), "&")
+	HANDLE_UNIOP(ID($reduce_or), "|")
+	HANDLE_UNIOP(ID($reduce_xor), "^")
 	HANDLE_UNIOP(ID($reduce_xnor), "~^")
 	HANDLE_UNIOP(ID($reduce_bool), "|")
 
-	HANDLE_BINOP(ID($shl),  "<<")
-	HANDLE_BINOP(ID($shr),  ">>")
+	HANDLE_BINOP(ID($shl), "<<")
+	HANDLE_BINOP(ID($shr), ">>")
 	HANDLE_BINOP(ID($sshl), "<<<")
 	HANDLE_BINOP(ID($sshr), ">>>")
 
-	HANDLE_BINOP(ID($lt),  "<")
-	HANDLE_BINOP(ID($le),  "<=")
-	HANDLE_BINOP(ID($eq),  "==")
-	HANDLE_BINOP(ID($ne),  "!=")
+	HANDLE_BINOP(ID($lt), "<")
+	HANDLE_BINOP(ID($le), "<=")
+	HANDLE_BINOP(ID($eq), "==")
+	HANDLE_BINOP(ID($ne), "!=")
 	HANDLE_BINOP(ID($eqx), "===")
 	HANDLE_BINOP(ID($nex), "!==")
-	HANDLE_BINOP(ID($ge),  ">=")
-	HANDLE_BINOP(ID($gt),  ">")
+	HANDLE_BINOP(ID($ge), ">=")
+	HANDLE_BINOP(ID($gt), ">")
 
 	HANDLE_BINOP(ID($add), "+")
 	HANDLE_BINOP(ID($sub), "-")
@@ -1208,13 +1524,12 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 
 	HANDLE_UNIOP(ID($logic_not), "!")
 	HANDLE_BINOP(ID($logic_and), "&&")
-	HANDLE_BINOP(ID($logic_or),  "||")
+	HANDLE_BINOP(ID($logic_or), "||")
 
 #undef HANDLE_UNIOP
 #undef HANDLE_BINOP
 
-	if (cell->type == ID($divfloor))
-	{
+	if (cell->type == ID($divfloor)) {
 		// wire [MAXLEN+1:0] _0_, _1_, _2_;
 		// assign _0_ = $signed(A);
 		// assign _1_ = $signed(B);
@@ -1234,28 +1549,37 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			int size_max = std::max(size_a, std::max(size_b, size_y));
 
 			// intentionally one wider than maximum width
-			f << stringf("%s" "wire [%d:0] %s, %s, %s;\n", indent.c_str(), size_max, buf_a.c_str(), buf_b.c_str(), buf_num.c_str());
-			f << stringf("%s" "assign %s = ", indent.c_str(), buf_a.c_str());
+			f << stringf("%s"
+				     "wire [%d:0] %s, %s, %s;\n",
+				     indent.c_str(), size_max, buf_a.c_str(), buf_b.c_str(), buf_num.c_str());
+			f << stringf("%s"
+				     "assign %s = ",
+				     indent.c_str(), buf_a.c_str());
 			dump_cell_expr_port(f, cell, "A", true);
 			f << stringf(";\n");
-			f << stringf("%s" "assign %s = ", indent.c_str(), buf_b.c_str());
+			f << stringf("%s"
+				     "assign %s = ",
+				     indent.c_str(), buf_b.c_str());
 			dump_cell_expr_port(f, cell, "B", true);
 			f << stringf(";\n");
 
-			f << stringf("%s" "assign %s = ", indent.c_str(), buf_num.c_str());
+			f << stringf("%s"
+				     "assign %s = ",
+				     indent.c_str(), buf_num.c_str());
 			f << stringf("(");
-			dump_sigspec(f, sig_a.extract(sig_a.size()-1));
+			dump_sigspec(f, sig_a.extract(sig_a.size() - 1));
 			f << stringf(" == ");
-			dump_sigspec(f, sig_b.extract(sig_b.size()-1));
+			dump_sigspec(f, sig_b.extract(sig_b.size() - 1));
 			f << stringf(") || ");
 			dump_sigspec(f, sig_a);
 			f << stringf(" == 0 ? %s : ", buf_a.c_str());
 			f << stringf("$signed(%s - (", buf_a.c_str());
-			dump_sigspec(f, sig_b.extract(sig_b.size()-1));
+			dump_sigspec(f, sig_b.extract(sig_b.size() - 1));
 			f << stringf(" ? %s + 1 : %s - 1));\n", buf_b.c_str(), buf_b.c_str());
 
-
-			f << stringf("%s" "assign ", indent.c_str());
+			f << stringf("%s"
+				     "assign ",
+				     indent.c_str());
 			dump_sigspec(f, cell->getPort(ID::Y));
 			f << stringf(" = $signed(%s) / ", buf_num.c_str());
 			dump_attributes(f, "", cell->attributes, " ");
@@ -1268,8 +1592,7 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		}
 	}
 
-	if (cell->type == ID($modfloor))
-	{
+	if (cell->type == ID($modfloor)) {
 		// wire truncated = $signed(A) % $signed(B);
 		// assign Y = (A[-1] == B[-1]) || truncated == 0 ? $signed(truncated) : $signed(B) + $signed(truncated);
 
@@ -1278,19 +1601,23 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			SigSpec sig_b = cell->getPort(ID::B);
 
 			std::string temp_id = next_auto_id();
-			f << stringf("%s" "wire [%d:0] %s = ", indent.c_str(), GetSize(cell->getPort(ID::A))-1, temp_id.c_str());
+			f << stringf("%s"
+				     "wire [%d:0] %s = ",
+				     indent.c_str(), GetSize(cell->getPort(ID::A)) - 1, temp_id.c_str());
 			dump_cell_expr_port(f, cell, "A", true);
 			f << stringf(" %% ");
 			dump_attributes(f, "", cell->attributes, " ");
 			dump_cell_expr_port(f, cell, "B", true);
 			f << stringf(";\n");
 
-			f << stringf("%s" "assign ", indent.c_str());
+			f << stringf("%s"
+				     "assign ",
+				     indent.c_str());
 			dump_sigspec(f, cell->getPort(ID::Y));
 			f << stringf(" = (");
-			dump_sigspec(f, sig_a.extract(sig_a.size()-1));
+			dump_sigspec(f, sig_a.extract(sig_a.size() - 1));
 			f << stringf(" == ");
-			dump_sigspec(f, sig_b.extract(sig_b.size()-1));
+			dump_sigspec(f, sig_b.extract(sig_b.size() - 1));
 			f << stringf(") || %s == 0 ? $signed(%s) : ", temp_id.c_str(), temp_id.c_str());
 			dump_cell_expr_port(f, cell, "B", true);
 			f << stringf(" + $signed(%s);\n", temp_id.c_str());
@@ -1302,13 +1629,13 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		}
 	}
 
-	if (cell->type == ID($shift))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($shift)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
-		if (cell->getParam(ID::B_SIGNED).as_bool())
-		{
+		if (cell->getParam(ID::B_SIGNED).as_bool()) {
 			dump_cell_expr_port(f, cell, "B", true);
 			f << stringf(" < 0 ? ");
 			dump_cell_expr_port(f, cell, "A", true);
@@ -1318,9 +1645,7 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			dump_cell_expr_port(f, cell, "A", true);
 			f << stringf(" >> ");
 			dump_sigspec(f, cell->getPort(ID::B));
-		}
-		else
-		{
+		} else {
 			dump_cell_expr_port(f, cell, "A", true);
 			f << stringf(" >> ");
 			dump_sigspec(f, cell->getPort(ID::B));
@@ -1329,14 +1654,17 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($shiftx))
-	{
+	if (cell->type == ID($shiftx)) {
 		std::string temp_id = next_auto_id();
-		f << stringf("%s" "wire [%d:0] %s = ", indent.c_str(), GetSize(cell->getPort(ID::A))-1, temp_id.c_str());
+		f << stringf("%s"
+			     "wire [%d:0] %s = ",
+			     indent.c_str(), GetSize(cell->getPort(ID::A)) - 1, temp_id.c_str());
 		dump_sigspec(f, cell->getPort(ID::A));
 		f << stringf(";\n");
 
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = %s[", temp_id.c_str());
 		if (cell->getParam(ID::B_SIGNED).as_bool())
@@ -1349,9 +1677,10 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($mux))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($mux)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_sigspec(f, cell->getPort(ID::S));
@@ -1364,55 +1693,87 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($pmux))
-	{
+	if (cell->type == ID($pmux)) {
 		int width = cell->parameters[ID::WIDTH].as_int();
 		int s_width = cell->getPort(ID::S).size();
 		std::string func_name = cellname(cell);
 
-		f << stringf("%s" "function [%d:0] %s;\n", indent.c_str(), width-1, func_name.c_str());
-		f << stringf("%s" "  input [%d:0] a;\n", indent.c_str(), width-1);
-		f << stringf("%s" "  input [%d:0] b;\n", indent.c_str(), s_width*width-1);
-		f << stringf("%s" "  input [%d:0] s;\n", indent.c_str(), s_width-1);
+		f << stringf("%s"
+			     "function [%d:0] %s;\n",
+			     indent.c_str(), width - 1, func_name.c_str());
+		f << stringf("%s"
+			     "  input [%d:0] a;\n",
+			     indent.c_str(), width - 1);
+		f << stringf("%s"
+			     "  input [%d:0] b;\n",
+			     indent.c_str(), s_width * width - 1);
+		f << stringf("%s"
+			     "  input [%d:0] s;\n",
+			     indent.c_str(), s_width - 1);
 
 		dump_attributes(f, indent + "  ", cell->attributes);
 		if (noparallelcase)
-			f << stringf("%s" "  case (s)\n", indent.c_str());
+			f << stringf("%s"
+				     "  case (s)\n",
+				     indent.c_str());
 		else {
 			if (!noattr)
-				f << stringf("%s" "  (* parallel_case *)\n", indent.c_str());
-			f << stringf("%s" "  casez (s)", indent.c_str());
+				f << stringf("%s"
+					     "  (* parallel_case *)\n",
+					     indent.c_str());
+			f << stringf("%s"
+				     "  casez (s)",
+				     indent.c_str());
 			f << stringf(noattr ? " // synopsys parallel_case\n" : "\n");
 		}
 
-		for (int i = 0; i < s_width; i++)
-		{
-			f << stringf("%s" "    %d'b", indent.c_str(), s_width);
+		for (int i = 0; i < s_width; i++) {
+			f << stringf("%s"
+				     "    %d'b",
+				     indent.c_str(), s_width);
 
-			for (int j = s_width-1; j >= 0; j--)
+			for (int j = s_width - 1; j >= 0; j--)
 				f << stringf("%c", j == i ? '1' : noparallelcase ? '0' : '?');
 
 			f << stringf(":\n");
-			f << stringf("%s" "      %s = b[%d:%d];\n", indent.c_str(), func_name.c_str(), (i+1)*width-1, i*width);
+			f << stringf("%s"
+				     "      %s = b[%d:%d];\n",
+				     indent.c_str(), func_name.c_str(), (i + 1) * width - 1, i * width);
 		}
 
 		if (noparallelcase) {
-			f << stringf("%s" "    %d'b", indent.c_str(), s_width);
-			for (int j = s_width-1; j >= 0; j--)
+			f << stringf("%s"
+				     "    %d'b",
+				     indent.c_str(), s_width);
+			for (int j = s_width - 1; j >= 0; j--)
 				f << '0';
 			f << stringf(":\n");
 		} else
-			f << stringf("%s" "    default:\n", indent.c_str());
-		f << stringf("%s" "      %s = a;\n", indent.c_str(), func_name.c_str());
+			f << stringf("%s"
+				     "    default:\n",
+				     indent.c_str());
+		f << stringf("%s"
+			     "      %s = a;\n",
+			     indent.c_str(), func_name.c_str());
 		if (noparallelcase) {
-			f << stringf("%s" "    default:\n", indent.c_str());
-			f << stringf("%s" "      %s = %d'bx;\n", indent.c_str(), func_name.c_str(), width);
+			f << stringf("%s"
+				     "    default:\n",
+				     indent.c_str());
+			f << stringf("%s"
+				     "      %s = %d'bx;\n",
+				     indent.c_str(), func_name.c_str(), width);
 		}
 
-		f << stringf("%s" "  endcase\n", indent.c_str());
-		f << stringf("%s" "endfunction\n", indent.c_str());
+		f << stringf("%s"
+			     "  endcase\n",
+			     indent.c_str());
+		f << stringf("%s"
+			     "endfunction\n",
+			     indent.c_str());
 
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = %s(", func_name.c_str());
 		dump_sigspec(f, cell->getPort(ID::A));
@@ -1424,9 +1785,10 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($tribuf))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($tribuf)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_sigspec(f, cell->getPort(ID::EN));
@@ -1436,9 +1798,10 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($slice))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($slice)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_sigspec(f, cell->getPort(ID::A));
@@ -1446,9 +1809,10 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($concat))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($concat)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = { ");
 		dump_sigspec(f, cell->getPort(ID::B));
@@ -1458,9 +1822,10 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($lut))
-	{
-		f << stringf("%s" "assign ", indent.c_str());
+	if (cell->type == ID($lut)) {
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::Y));
 		f << stringf(" = ");
 		dump_const(f, cell->parameters.at(ID::LUT));
@@ -1471,8 +1836,7 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (RTLIL::builtin_ff_cell_types().count(cell->type))
-	{
+	if (RTLIL::builtin_ff_cell_types().count(cell->type)) {
 		FfData ff(nullptr, cell);
 
 		// $ff / $_FF_ cell: not supported.
@@ -1484,9 +1848,13 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 
 		if (!out_is_reg_wire) {
 			if (ff.width == 1)
-				f << stringf("%s" "reg %s", indent.c_str(), reg_name.c_str());
+				f << stringf("%s"
+					     "reg %s",
+					     indent.c_str(), reg_name.c_str());
 			else
-				f << stringf("%s" "reg [%d:0] %s", indent.c_str(), ff.width-1, reg_name.c_str());
+				f << stringf("%s"
+					     "reg [%d:0] %s",
+					     indent.c_str(), ff.width - 1, reg_name.c_str());
 			dump_reg_init(f, ff.sig_q);
 			f << ";\n";
 		}
@@ -1495,8 +1863,7 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		int chunks = ff.has_sr ? ff.width : 1;
 		bool chunky = ff.has_sr && ff.width != 1;
 
-		for (int i = 0; i < chunks; i++)
-		{
+		for (int i = 0; i < chunks; i++) {
 			SigSpec sig_d, sig_ad;
 			Const val_arst, val_srst;
 			std::string reg_bit_name, sig_set_name, sig_clr_name, sig_arst_name, sig_aload_name;
@@ -1519,33 +1886,37 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			// If there are constants in the sensitivity list, replace them with an intermediate wire
 			if (ff.has_clk) {
 				if (ff.has_sr) {
-					if (ff.sig_set[i].wire == NULL)
-					{
+					if (ff.sig_set[i].wire == NULL) {
 						sig_set_name = next_auto_id();
-						f << stringf("%s" "wire %s = ", indent.c_str(), sig_set_name.c_str());
+						f << stringf("%s"
+							     "wire %s = ",
+							     indent.c_str(), sig_set_name.c_str());
 						dump_const(f, ff.sig_set[i].data);
 						f << stringf(";\n");
 					}
-					if (ff.sig_clr[i].wire == NULL)
-					{
+					if (ff.sig_clr[i].wire == NULL) {
 						sig_clr_name = next_auto_id();
-						f << stringf("%s" "wire %s = ", indent.c_str(), sig_clr_name.c_str());
+						f << stringf("%s"
+							     "wire %s = ",
+							     indent.c_str(), sig_clr_name.c_str());
 						dump_const(f, ff.sig_clr[i].data);
 						f << stringf(";\n");
 					}
 				} else if (ff.has_arst) {
-					if (ff.sig_arst[0].wire == NULL)
-					{
+					if (ff.sig_arst[0].wire == NULL) {
 						sig_arst_name = next_auto_id();
-						f << stringf("%s" "wire %s = ", indent.c_str(), sig_arst_name.c_str());
+						f << stringf("%s"
+							     "wire %s = ",
+							     indent.c_str(), sig_arst_name.c_str());
 						dump_const(f, ff.sig_arst[0].data);
 						f << stringf(";\n");
 					}
 				} else if (ff.has_aload) {
-					if (ff.sig_aload[0].wire == NULL)
-					{
+					if (ff.sig_aload[0].wire == NULL) {
 						sig_aload_name = next_auto_id();
-						f << stringf("%s" "wire %s = ", indent.c_str(), sig_aload_name.c_str());
+						f << stringf("%s"
+							     "wire %s = ",
+							     indent.c_str(), sig_aload_name.c_str());
 						dump_const(f, ff.sig_aload[0].data);
 						f << stringf(";\n");
 					}
@@ -1553,10 +1924,11 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			}
 
 			dump_attributes(f, indent, cell->attributes);
-			if (ff.has_clk)
-			{
+			if (ff.has_clk) {
 				// FFs.
-				f << stringf("%s" "always%s @(%sedge ", indent.c_str(), systemverilog ? "_ff" : "", ff.pol_clk ? "pos" : "neg");
+				f << stringf("%s"
+					     "always%s @(%sedge ",
+					     indent.c_str(), systemverilog ? "_ff" : "", ff.pol_clk ? "pos" : "neg");
 				dump_sigspec(f, ff.sig_clk);
 				if (ff.has_sr) {
 					f << stringf(", %sedge ", ff.pol_set ? "pos" : "neg");
@@ -1585,7 +1957,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 				}
 				f << stringf(")\n");
 
-				f << stringf("%s" "  ", indent.c_str());
+				f << stringf("%s"
+					     "  ",
+					     indent.c_str());
 				if (ff.has_sr) {
 					f << stringf("if (%s", ff.pol_clr ? "" : "!");
 					if (ff.sig_clr[i].wire == NULL)
@@ -1593,13 +1967,17 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 					else
 						dump_sigspec(f, ff.sig_clr[i]);
 					f << stringf(") %s <= 1'b0;\n", reg_bit_name.c_str());
-					f << stringf("%s" "  else if (%s", indent.c_str(), ff.pol_set ? "" : "!");
+					f << stringf("%s"
+						     "  else if (%s",
+						     indent.c_str(), ff.pol_set ? "" : "!");
 					if (ff.sig_set[i].wire == NULL)
 						f << stringf("%s", sig_set_name.c_str());
 					else
 						dump_sigspec(f, ff.sig_set[i]);
 					f << stringf(") %s <= 1'b1;\n", reg_bit_name.c_str());
-					f << stringf("%s" "  else ", indent.c_str());
+					f << stringf("%s"
+						     "  else ",
+						     indent.c_str());
 				} else if (ff.has_arst) {
 					f << stringf("if (%s", ff.pol_arst ? "" : "!");
 					if (ff.sig_arst[0].wire == NULL)
@@ -1609,7 +1987,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 					f << stringf(") %s <= ", reg_bit_name.c_str());
 					dump_sigspec(f, val_arst);
 					f << stringf(";\n");
-					f << stringf("%s" "  else ", indent.c_str());
+					f << stringf("%s"
+						     "  else ",
+						     indent.c_str());
 				} else if (ff.has_aload) {
 					f << stringf("if (%s", ff.pol_aload ? "" : "!");
 					if (ff.sig_aload[0].wire == NULL)
@@ -1619,19 +1999,25 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 					f << stringf(") %s <= ", reg_bit_name.c_str());
 					dump_sigspec(f, sig_ad);
 					f << stringf(";\n");
-					f << stringf("%s" "  else ", indent.c_str());
+					f << stringf("%s"
+						     "  else ",
+						     indent.c_str());
 				}
 
 				if (ff.has_srst && ff.has_ce && ff.ce_over_srst) {
 					f << stringf("if (%s", ff.pol_ce ? "" : "!");
 					dump_sigspec(f, ff.sig_ce);
 					f << stringf(")\n");
-					f << stringf("%s" "    if (%s", indent.c_str(), ff.pol_srst ? "" : "!");
+					f << stringf("%s"
+						     "    if (%s",
+						     indent.c_str(), ff.pol_srst ? "" : "!");
 					dump_sigspec(f, ff.sig_srst);
 					f << stringf(") %s <= ", reg_bit_name.c_str());
 					dump_sigspec(f, val_srst);
 					f << stringf(";\n");
-					f << stringf("%s" "    else ", indent.c_str());
+					f << stringf("%s"
+						     "    else ",
+						     indent.c_str());
 				} else {
 					if (ff.has_srst) {
 						f << stringf("if (%s", ff.pol_srst ? "" : "!");
@@ -1639,7 +2025,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 						f << stringf(") %s <= ", reg_bit_name.c_str());
 						dump_sigspec(f, val_srst);
 						f << stringf(";\n");
-						f << stringf("%s" "  else ", indent.c_str());
+						f << stringf("%s"
+							     "  else ",
+							     indent.c_str());
 					}
 					if (ff.has_ce) {
 						f << stringf("if (%s", ff.pol_ce ? "" : "!");
@@ -1651,22 +2039,28 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 				f << stringf("%s <= ", reg_bit_name.c_str());
 				dump_sigspec(f, sig_d);
 				f << stringf(";\n");
-			}
-			else
-			{
+			} else {
 				// Latches.
-				f << stringf("%s" "always%s\n", indent.c_str(), systemverilog ? "_latch" : " @*");
+				f << stringf("%s"
+					     "always%s\n",
+					     indent.c_str(), systemverilog ? "_latch" : " @*");
 
-				f << stringf("%s" "  ", indent.c_str());
+				f << stringf("%s"
+					     "  ",
+					     indent.c_str());
 				if (ff.has_sr) {
 					f << stringf("if (%s", ff.pol_clr ? "" : "!");
 					dump_sigspec(f, ff.sig_clr[i]);
 					f << stringf(") %s = 1'b0;\n", reg_bit_name.c_str());
-					f << stringf("%s" "  else if (%s", indent.c_str(), ff.pol_set ? "" : "!");
+					f << stringf("%s"
+						     "  else if (%s",
+						     indent.c_str(), ff.pol_set ? "" : "!");
 					dump_sigspec(f, ff.sig_set[i]);
 					f << stringf(") %s = 1'b1;\n", reg_bit_name.c_str());
 					if (ff.has_aload)
-						f << stringf("%s" "  else ", indent.c_str());
+						f << stringf("%s"
+							     "  else ",
+							     indent.c_str());
 				} else if (ff.has_arst) {
 					f << stringf("if (%s", ff.pol_arst ? "" : "!");
 					dump_sigspec(f, ff.sig_arst);
@@ -1674,7 +2068,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 					dump_sigspec(f, val_arst);
 					f << stringf(";\n");
 					if (ff.has_aload)
-						f << stringf("%s" "  else ", indent.c_str());
+						f << stringf("%s"
+							     "  else ",
+							     indent.c_str());
 				}
 				if (ff.has_aload) {
 					f << stringf("if (%s", ff.pol_aload ? "" : "!");
@@ -1687,7 +2083,9 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		}
 
 		if (!out_is_reg_wire) {
-			f << stringf("%s" "assign ", indent.c_str());
+			f << stringf("%s"
+				     "assign ",
+				     indent.c_str());
 			dump_sigspec(f, ff.sig_q);
 			f << stringf(" = %s;\n", reg_name.c_str());
 		}
@@ -1695,19 +2093,21 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type.in(ID($assert), ID($assume), ID($cover)))
-	{
-		f << stringf("%s" "always%s if (", indent.c_str(), systemverilog ? "_comb" : " @*");
+	if (cell->type.in(ID($assert), ID($assume), ID($cover))) {
+		f << stringf("%s"
+			     "always%s if (",
+			     indent.c_str(), systemverilog ? "_comb" : " @*");
 		dump_sigspec(f, cell->getPort(ID::EN));
-		f << stringf(") %s(", cell->type.c_str()+1);
+		f << stringf(") %s(", cell->type.c_str() + 1);
 		dump_sigspec(f, cell->getPort(ID::A));
 		f << stringf(");\n");
 		return true;
 	}
 
-	if (cell->type.in(ID($specify2), ID($specify3)))
-	{
-		f << stringf("%s" "specify\n%s  ", indent.c_str(), indent.c_str());
+	if (cell->type.in(ID($specify2), ID($specify3))) {
+		f << stringf("%s"
+			     "specify\n%s  ",
+			     indent.c_str(), indent.c_str());
 
 		SigSpec en = cell->getPort(ID::EN);
 		if (en != State::S1) {
@@ -1718,21 +2118,21 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 
 		f << "(";
 		if (cell->type == ID($specify3) && cell->getParam(ID::EDGE_EN).as_bool())
-			f << (cell->getParam(ID::EDGE_POL).as_bool() ? "posedge ": "negedge ");
+			f << (cell->getParam(ID::EDGE_POL).as_bool() ? "posedge " : "negedge ");
 
 		dump_sigspec(f, cell->getPort(ID::SRC));
 
 		f << " ";
 		if (cell->getParam(ID::SRC_DST_PEN).as_bool())
-			f << (cell->getParam(ID::SRC_DST_POL).as_bool() ? "+": "-");
-		f << (cell->getParam(ID::FULL).as_bool() ? "*> ": "=> ");
+			f << (cell->getParam(ID::SRC_DST_POL).as_bool() ? "+" : "-");
+		f << (cell->getParam(ID::FULL).as_bool() ? "*> " : "=> ");
 
 		if (cell->type == ID($specify3)) {
 			f << "(";
 			dump_sigspec(f, cell->getPort(ID::DST));
 			f << " ";
 			if (cell->getParam(ID::DAT_DST_PEN).as_bool())
-				f << (cell->getParam(ID::DAT_DST_POL).as_bool() ? "+": "-");
+				f << (cell->getParam(ID::DAT_DST_POL).as_bool() ? "+" : "-");
 			f << ": ";
 			dump_sigspec(f, cell->getPort(ID::DAT));
 			f << ")";
@@ -1759,19 +2159,22 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 
 		decimal = bak_decimal;
 
-		f << stringf("%s" "endspecify\n", indent.c_str());
+		f << stringf("%s"
+			     "endspecify\n",
+			     indent.c_str());
 		return true;
 	}
 
-	if (cell->type == ID($specrule))
-	{
-		f << stringf("%s" "specify\n%s  ", indent.c_str(), indent.c_str());
+	if (cell->type == ID($specrule)) {
+		f << stringf("%s"
+			     "specify\n%s  ",
+			     indent.c_str(), indent.c_str());
 
 		IdString spec_type = cell->getParam(ID::TYPE).decode_string();
 		f << stringf("%s(", spec_type.c_str());
 
 		if (cell->getParam(ID::SRC_PEN).as_bool())
-			f << (cell->getParam(ID::SRC_POL).as_bool() ? "posedge ": "negedge ");
+			f << (cell->getParam(ID::SRC_POL).as_bool() ? "posedge " : "negedge ");
 		dump_sigspec(f, cell->getPort(ID::SRC));
 
 		if (cell->getPort(ID::SRC_EN) != State::S1) {
@@ -1781,7 +2184,7 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 
 		f << ", ";
 		if (cell->getParam(ID::DST_PEN).as_bool())
-			f << (cell->getParam(ID::DST_POL).as_bool() ? "posedge ": "negedge ");
+			f << (cell->getParam(ID::DST_POL).as_bool() ? "posedge " : "negedge ");
 		dump_sigspec(f, cell->getPort(ID::DST));
 
 		if (cell->getPort(ID::DST_EN) != State::S1) {
@@ -1811,19 +2214,24 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		f << ");\n";
 		decimal = bak_decimal;
 
-		f << stringf("%s" "endspecify\n", indent.c_str());
+		f << stringf("%s"
+			     "endspecify\n",
+			     indent.c_str());
 		return true;
 	}
 
-	if (cell->type == ID($print))
-	{
+	if (cell->type == ID($print)) {
 		// Sync $print cells are accumulated and handled in dump_module.
 		if (cell->getParam(ID::TRG_ENABLE).as_bool())
 			return true;
 
-		f << stringf("%s" "always @*\n", indent.c_str());
+		f << stringf("%s"
+			     "always @*\n",
+			     indent.c_str());
 
-		f << stringf("%s" "  if (", indent.c_str());
+		f << stringf("%s"
+			     "  if (",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::EN));
 		f << stringf(")\n");
 
@@ -1831,15 +2239,18 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
-	if (cell->type == ID($check))
-	{
+	if (cell->type == ID($check)) {
 		// Sync $check cells are accumulated and handled in dump_module.
 		if (cell->getParam(ID::TRG_ENABLE).as_bool())
 			return true;
 
-		f << stringf("%s" "always @*\n", indent.c_str());
+		f << stringf("%s"
+			     "always @*\n",
+			     indent.c_str());
 
-		f << stringf("%s" "  if (", indent.c_str());
+		f << stringf("%s"
+			     "  if (",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::EN));
 		f << stringf(") begin\n");
 
@@ -1848,18 +2259,24 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			Fmt fmt;
 			fmt.parse_rtlil(cell);
 			if (!fmt.parts.empty()) {
-				f << stringf("%s" "    if (!", indent.c_str());
+				f << stringf("%s"
+					     "    if (!",
+					     indent.c_str());
 				dump_sigspec(f, cell->getPort(ID::A));
 				f << stringf(")\n");
 				dump_cell_expr_print(f, indent + "      ", cell);
 			}
 		} else {
-			f << stringf("%s" "  /* message omitted */\n", indent.c_str());
+			f << stringf("%s"
+				     "  /* message omitted */\n",
+				     indent.c_str());
 		}
 
 		dump_cell_expr_check(f, indent + "    ", cell);
 
-		f << stringf("%s" "  end\n", indent.c_str());
+		f << stringf("%s"
+			     "  end\n",
+			     indent.c_str());
 
 		return true;
 	}
@@ -1888,7 +2305,9 @@ void dump_cell(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 
 	dump_attributes(f, indent, cell->attributes);
-	f << stringf("%s" "%s", indent.c_str(), id(cell->type, false).c_str());
+	f << stringf("%s"
+		     "%s",
+		     indent.c_str(), id(cell->type, false).c_str());
 
 	if (!defparam && cell->parameters.size() > 0) {
 		f << stringf(" #(");
@@ -1900,7 +2319,9 @@ void dump_cell(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 				dump_const(f, it->second);
 			f << stringf(")");
 		}
-		f << stringf("\n%s" ")", indent.c_str());
+		f << stringf("\n%s"
+			     ")",
+			     indent.c_str());
 	}
 
 	std::string cell_name = cellname(cell);
@@ -1939,7 +2360,9 @@ void dump_cell(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 			dump_sigspec(f, it->second);
 		f << stringf(")");
 	}
-	f << stringf("\n%s" ");\n", indent.c_str());
+	f << stringf("\n%s"
+		     ");\n",
+		     indent.c_str());
 
 	if (defparam && cell->parameters.size() > 0) {
 		for (auto it = cell->parameters.begin(); it != cell->parameters.end(); ++it) {
@@ -1960,12 +2383,17 @@ void dump_cell(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 	}
 }
 
-void dump_sync_effect(std::ostream &f, std::string indent, const RTLIL::SigSpec &trg, const RTLIL::Const &polarity, std::vector<const RTLIL::Cell*> &cells)
+void dump_sync_effect(std::ostream &f, std::string indent, const RTLIL::SigSpec &trg, const RTLIL::Const &polarity,
+		      std::vector<const RTLIL::Cell *> &cells)
 {
 	if (trg.size() == 0) {
-		f << stringf("%s" "initial begin\n", indent.c_str());
+		f << stringf("%s"
+			     "initial begin\n",
+			     indent.c_str());
 	} else {
-		f << stringf("%s" "always @(", indent.c_str());
+		f << stringf("%s"
+			     "always @(",
+			     indent.c_str());
 		for (int i = 0; i < trg.size(); i++) {
 			if (i != 0)
 				f << " or ";
@@ -1978,11 +2406,12 @@ void dump_sync_effect(std::ostream &f, std::string indent, const RTLIL::SigSpec 
 		f << ") begin\n";
 	}
 
-	std::sort(cells.begin(), cells.end(), [](const RTLIL::Cell *a, const RTLIL::Cell *b) {
-		return a->getParam(ID::PRIORITY).as_int() > b->getParam(ID::PRIORITY).as_int();
-	});
+	std::sort(cells.begin(), cells.end(),
+		  [](const RTLIL::Cell *a, const RTLIL::Cell *b) { return a->getParam(ID::PRIORITY).as_int() > b->getParam(ID::PRIORITY).as_int(); });
 	for (auto cell : cells) {
-		f << stringf("%s" "  if (", indent.c_str());
+		f << stringf("%s"
+			     "  if (",
+			     indent.c_str());
 		dump_sigspec(f, cell->getPort(ID::EN));
 		f << stringf(") begin\n");
 
@@ -1994,22 +2423,30 @@ void dump_sync_effect(std::ostream &f, std::string indent, const RTLIL::SigSpec 
 				Fmt fmt;
 				fmt.parse_rtlil(cell);
 				if (!fmt.parts.empty()) {
-					f << stringf("%s" "    if (!", indent.c_str());
+					f << stringf("%s"
+						     "    if (!",
+						     indent.c_str());
 					dump_sigspec(f, cell->getPort(ID::A));
 					f << stringf(")\n");
 					dump_cell_expr_print(f, indent + "      ", cell);
 				}
 			} else {
-				f << stringf("%s" "  /* message omitted */\n", indent.c_str());
+				f << stringf("%s"
+					     "  /* message omitted */\n",
+					     indent.c_str());
 			}
 
 			dump_cell_expr_check(f, indent + "    ", cell);
 		}
 
-		f << stringf("%s" "  end\n", indent.c_str());
+		f << stringf("%s"
+			     "  end\n",
+			     indent.c_str());
 	}
 
-	f << stringf("%s" "end\n", indent.c_str());
+	f << stringf("%s"
+		     "end\n",
+		     indent.c_str());
 }
 
 void dump_conn(std::ostream &f, std::string indent, const RTLIL::SigSpec &left, const RTLIL::SigSpec &right)
@@ -2019,7 +2456,9 @@ void dump_conn(std::ostream &f, std::string indent, const RTLIL::SigSpec &left, 
 		if (chunk.is_wire() && reg_wires.count(chunk.wire->name))
 			all_chunks_wires = false;
 	if (!simple_lhs && all_chunks_wires) {
-		f << stringf("%s" "assign ", indent.c_str());
+		f << stringf("%s"
+			     "assign ",
+			     indent.c_str());
 		dump_sigspec(f, left);
 		f << stringf(" = ");
 		dump_sigspec(f, right);
@@ -2028,9 +2467,13 @@ void dump_conn(std::ostream &f, std::string indent, const RTLIL::SigSpec &left, 
 		int offset = 0;
 		for (auto &chunk : left.chunks()) {
 			if (chunk.is_wire() && reg_wires.count(chunk.wire->name))
-				f << stringf("%s" "always%s\n%s  ", indent.c_str(), systemverilog ? "_comb" : " @*", indent.c_str());
+				f << stringf("%s"
+					     "always%s\n%s  ",
+					     indent.c_str(), systemverilog ? "_comb" : " @*", indent.c_str());
 			else
-				f << stringf("%s" "assign ", indent.c_str());
+				f << stringf("%s"
+					     "assign ",
+					     indent.c_str());
 			dump_sigspec(f, chunk);
 			f << stringf(" = ");
 			dump_sigspec(f, right.extract(offset, GetSize(chunk)));
@@ -2108,7 +2551,9 @@ void dump_case_body(std::ostream &f, std::string indent, RTLIL::CaseRule *cs, bo
 	int number_of_stmts = cs->switches.size() + cs->actions.size();
 
 	if (!omit_trailing_begin && number_of_stmts >= 2)
-		f << stringf("%s" "begin\n", indent.c_str());
+		f << stringf("%s"
+			     "begin\n",
+			     indent.c_str());
 
 	dump_case_actions(f, indent, cs);
 	for (auto it = cs->switches.begin(); it != cs->switches.end(); ++it)
@@ -2118,18 +2563,24 @@ void dump_case_body(std::ostream &f, std::string indent, RTLIL::CaseRule *cs, bo
 		f << stringf("%s  /* empty */;\n", indent.c_str());
 
 	if (omit_trailing_begin || number_of_stmts >= 2)
-		f << stringf("%s" "end\n", indent.c_str());
+		f << stringf("%s"
+			     "end\n",
+			     indent.c_str());
 }
 
 void dump_proc_switch(std::ostream &f, std::string indent, RTLIL::SwitchRule *sw)
 {
 	if (sw->signal.size() == 0) {
-		f << stringf("%s" "begin\n", indent.c_str());
+		f << stringf("%s"
+			     "begin\n",
+			     indent.c_str());
 		for (auto it = sw->cases.begin(); it != sw->cases.end(); ++it) {
 			if ((*it)->compare.size() == 0)
 				dump_case_body(f, indent + "  ", *it);
 		}
-		f << stringf("%s" "end\n", indent.c_str());
+		f << stringf("%s"
+			     "end\n",
+			     indent.c_str());
 		return;
 	}
 
@@ -2137,7 +2588,9 @@ void dump_proc_switch(std::ostream &f, std::string indent, RTLIL::SwitchRule *sw
 		return;
 
 	dump_attributes(f, indent, sw->attributes);
-	f << stringf("%s" "casez (", indent.c_str());
+	f << stringf("%s"
+		     "casez (",
+		     indent.c_str());
 	dump_sigspec(f, sw->signal);
 	f << stringf(")\n");
 
@@ -2172,14 +2625,16 @@ void dump_proc_switch(std::ostream &f, std::string indent, RTLIL::SwitchRule *sw
 		f << stringf("%s  default: ;\n", indent.c_str());
 	}
 
-	f << stringf("%s" "endcase\n", indent.c_str());
+	f << stringf("%s"
+		     "endcase\n",
+		     indent.c_str());
 }
 
 void case_body_find_regs(RTLIL::CaseRule *cs)
 {
 	for (auto it = cs->switches.begin(); it != cs->switches.end(); ++it)
-	for (auto it2 = (*it)->cases.begin(); it2 != (*it)->cases.end(); it2++)
-		case_body_find_regs(*it2);
+		for (auto it2 = (*it)->cases.begin(); it2 != (*it)->cases.end(); it2++)
+			case_body_find_regs(*it2);
 
 	for (auto it = cs->actions.begin(); it != cs->actions.end(); ++it) {
 		for (auto &c : it->first.chunks())
@@ -2193,32 +2648,39 @@ void dump_process(std::ostream &f, std::string indent, RTLIL::Process *proc, boo
 	if (find_regs) {
 		case_body_find_regs(&proc->root_case);
 		for (auto it = proc->syncs.begin(); it != proc->syncs.end(); ++it)
-		for (auto it2 = (*it)->actions.begin(); it2 != (*it)->actions.end(); it2++) {
-			for (auto &c : it2->first.chunks())
-				if (c.wire != NULL)
-					reg_wires.insert(c.wire->name);
-		}
+			for (auto it2 = (*it)->actions.begin(); it2 != (*it)->actions.end(); it2++) {
+				for (auto &c : it2->first.chunks())
+					if (c.wire != NULL)
+						reg_wires.insert(c.wire->name);
+			}
 		return;
 	}
 
-	f << stringf("%s" "always%s begin\n", indent.c_str(), systemverilog ? "_comb" : " @*");
+	f << stringf("%s"
+		     "always%s begin\n",
+		     indent.c_str(), systemverilog ? "_comb" : " @*");
 	if (!systemverilog)
 		f << indent + "  " << "if (" << id(initial_id) << ") begin end\n";
 	dump_case_body(f, indent, &proc->root_case, true);
 
 	std::string backup_indent = indent;
 
-	for (size_t i = 0; i < proc->syncs.size(); i++)
-	{
+	for (size_t i = 0; i < proc->syncs.size(); i++) {
 		RTLIL::SyncRule *sync = proc->syncs[i];
 		indent = backup_indent;
 
 		if (sync->type == RTLIL::STa) {
-			f << stringf("%s" "always%s begin\n", indent.c_str(), systemverilog ? "_comb" : " @*");
+			f << stringf("%s"
+				     "always%s begin\n",
+				     indent.c_str(), systemverilog ? "_comb" : " @*");
 		} else if (sync->type == RTLIL::STi) {
-			f << stringf("%s" "initial begin\n", indent.c_str());
+			f << stringf("%s"
+				     "initial begin\n",
+				     indent.c_str());
 		} else {
-			f << stringf("%s" "always%s @(", indent.c_str(), systemverilog ? "_ff" : "");
+			f << stringf("%s"
+				     "always%s @(",
+				     indent.c_str(), systemverilog ? "_ff" : "");
 			if (sync->type == RTLIL::STp || sync->type == RTLIL::ST1)
 				f << stringf("posedge ");
 			if (sync->type == RTLIL::STn || sync->type == RTLIL::ST0)
@@ -2230,7 +2692,9 @@ void dump_process(std::ostream &f, std::string indent, RTLIL::Process *proc, boo
 		indent += "  ";
 
 		if (sync->type == RTLIL::ST0 || sync->type == RTLIL::ST1) {
-			f << stringf("%s" "if (%s", indent.c_str(), sync->type == RTLIL::ST0 ? "!" : "");
+			f << stringf("%s"
+				     "if (%s",
+				     indent.c_str(), sync->type == RTLIL::ST0 ? "!" : "");
 			dump_sigspec(f, sync->signal);
 			f << stringf(") begin\n");
 			ends = indent + "end\n" + ends;
@@ -2241,7 +2705,9 @@ void dump_process(std::ostream &f, std::string indent, RTLIL::Process *proc, boo
 			for (size_t j = 0; j < proc->syncs.size(); j++) {
 				RTLIL::SyncRule *sync2 = proc->syncs[j];
 				if (sync2->type == RTLIL::ST0 || sync2->type == RTLIL::ST1) {
-					f << stringf("%s" "if (%s", indent.c_str(), sync2->type == RTLIL::ST1 ? "!" : "");
+					f << stringf("%s"
+						     "if (%s",
+						     indent.c_str(), sync2->type == RTLIL::ST1 ? "!" : "");
 					dump_sigspec(f, sync2->signal);
 					f << stringf(") begin\n");
 					ends = indent + "end\n" + ends;
@@ -2266,7 +2732,7 @@ void dump_process(std::ostream &f, std::string indent, RTLIL::Process *proc, boo
 
 void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 {
-	std::map<std::pair<RTLIL::SigSpec, RTLIL::Const>, std::vector<const RTLIL::Cell*>> sync_effect_cells;
+	std::map<std::pair<RTLIL::SigSpec, RTLIL::Const>, std::vector<const RTLIL::Cell *>> sync_effect_cells;
 
 	reg_wires.clear();
 	reset_auto_counter(module);
@@ -2289,19 +2755,18 @@ void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 			has_sync_rules = true;
 	if (has_sync_rules)
 		log_warning("Module %s contains RTLIL processes with sync rules. Such RTLIL "
-				"processes can't always be mapped directly to Verilog always blocks. "
-				"unintended changes in simulation behavior are possible! Use \"proc\" "
-				"to convert processes to logic networks and registers.\n", log_id(module));
+			    "processes can't always be mapped directly to Verilog always blocks. "
+			    "unintended changes in simulation behavior are possible! Use \"proc\" "
+			    "to convert processes to logic networks and registers.\n",
+			    log_id(module));
 
 	f << stringf("\n");
 	for (auto it = module->processes.begin(); it != module->processes.end(); ++it)
 		dump_process(f, indent + "  ", it->second, true);
 
-	if (!noexpr)
-	{
-		std::set<std::pair<RTLIL::Wire*,int>> reg_bits;
-		for (auto cell : module->cells())
-		{
+	if (!noexpr) {
+		std::set<std::pair<RTLIL::Wire *, int>> reg_bits;
+		for (auto cell : module->cells()) {
 			if (cell->type.in(ID($print), ID($check)) && cell->getParam(ID::TRG_ENABLE).as_bool()) {
 				sync_effect_cells[make_pair(cell->getPort(ID::TRG), cell->getParam(ID::TRG_POLARITY))].push_back(cell);
 				continue;
@@ -2316,13 +2781,12 @@ void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 				RTLIL::SigChunk chunk = sig.as_chunk();
 				if (chunk.wire != NULL)
 					for (int i = 0; i < chunk.width; i++)
-						reg_bits.insert(std::pair<RTLIL::Wire*,int>(chunk.wire, chunk.offset+i));
+						reg_bits.insert(std::pair<RTLIL::Wire *, int>(chunk.wire, chunk.offset + i));
 			}
 		}
-		for (auto wire : module->wires())
-		{
+		for (auto wire : module->wires()) {
 			for (int i = 0; i < wire->width; i++)
-				if (reg_bits.count(std::pair<RTLIL::Wire*,int>(wire, i)) == 0)
+				if (reg_bits.count(std::pair<RTLIL::Wire *, int>(wire, i)) == 0)
 					goto this_wire_aint_reg;
 			if (wire->width)
 				reg_wires.insert(wire->name);
@@ -2331,7 +2795,9 @@ void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 	}
 
 	dump_attributes(f, indent, module->attributes, "\n", /*modattr=*/true);
-	f << stringf("%s" "module %s(", indent.c_str(), id(module->name, false).c_str());
+	f << stringf("%s"
+		     "module %s(",
+		     indent.c_str(), id(module->name, false).c_str());
 	bool keep_running = true;
 	int cnt = 0;
 	for (int port_id = 1; keep_running; port_id++) {
@@ -2342,7 +2808,11 @@ void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 					f << stringf(", ");
 				f << stringf("%s", id(wire->name).c_str());
 				keep_running = true;
-				if (cnt==20) { f << stringf("\n"); cnt = 0; } else cnt++;
+				if (cnt == 20) {
+					f << stringf("\n");
+					cnt = 0;
+				} else
+					cnt++;
 				continue;
 			}
 		}
@@ -2371,14 +2841,16 @@ void dump_module(std::ostream &f, std::string indent, RTLIL::Module *module)
 	for (auto it = module->connections().begin(); it != module->connections().end(); ++it)
 		dump_conn(f, indent + "  ", it->first, it->second);
 
-	f << stringf("%s" "endmodule\n", indent.c_str());
+	f << stringf("%s"
+		     "endmodule\n",
+		     indent.c_str());
 	active_module = NULL;
 	active_sigmap.clear();
 	active_initdata.clear();
 }
 
 struct VerilogBackend : public Backend {
-	VerilogBackend() : Backend("verilog", "write design to Verilog file") { }
+	VerilogBackend() : Backend("verilog", "write design to Verilog file") {}
 	void help() override
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
@@ -2508,7 +2980,7 @@ struct VerilogBackend : public Backend {
 				norename = true;
 				continue;
 			}
-			if (arg == "-renameprefix" && argidx+1 < args.size()) {
+			if (arg == "-renameprefix" && argidx + 1 < args.size()) {
 				auto_prefix = args[++argidx];
 				continue;
 			}
@@ -2576,8 +3048,7 @@ struct VerilogBackend : public Backend {
 			break;
 		}
 		extra_args(f, filename, args, argidx);
-		if (extmem)
-		{
+		if (extmem) {
 			if (filename == "<stdout>")
 				log_cmd_error("Option -extmem must be used with a filename.\n");
 			extmem_prefix = filename.substr(0, filename.rfind('.'));

@@ -22,12 +22,12 @@
 // Circuits and Systems (ISCAS), Proceedings of 2010 IEEE International Symposium on , vol., no., pp.2610,2613, May 30 2010-June 2 2010
 // doi: 10.1109/ISCAS.2010.5537093
 
+#include "fsmdata.h"
+#include "kernel/celltypes.h"
+#include "kernel/consteval.h"
 #include "kernel/log.h"
 #include "kernel/register.h"
 #include "kernel/sigtools.h"
-#include "kernel/consteval.h"
-#include "kernel/celltypes.h"
-#include "fsmdata.h"
 
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
@@ -38,7 +38,8 @@ typedef std::pair<RTLIL::IdString, RTLIL::IdString> sig2driver_entry_t;
 static SigSet<sig2driver_entry_t> sig2driver, sig2trigger;
 static std::map<RTLIL::SigBit, std::set<RTLIL::SigBit>> exclusive_ctrls;
 
-static bool find_states(RTLIL::SigSpec sig, const RTLIL::SigSpec &dff_out, RTLIL::SigSpec &ctrl, std::map<RTLIL::Const, int> &states, RTLIL::Const *reset_state = NULL)
+static bool find_states(RTLIL::SigSpec sig, const RTLIL::SigSpec &dff_out, RTLIL::SigSpec &ctrl, std::map<RTLIL::Const, int> &states,
+			RTLIL::Const *reset_state = NULL)
 {
 	sig.extend_u0(dff_out.size(), false);
 
@@ -67,8 +68,7 @@ static bool find_states(RTLIL::SigSpec sig, const RTLIL::SigSpec &dff_out, RTLIL
 		return false;
 	}
 
-	for (auto &cellport : cellport_list)
-	{
+	for (auto &cellport : cellport_list) {
 		RTLIL::Cell *cell = module->cells_.at(cellport.first);
 		if ((cell->type != ID($mux) && cell->type != ID($pmux)) || cellport.second != ID::Y) {
 			log("  unexpected cell type %s (%s) found in state selection tree.\n", cell->type.c_str(), cell->name.c_str());
@@ -84,9 +84,9 @@ static bool find_states(RTLIL::SigSpec sig, const RTLIL::SigSpec &dff_out, RTLIL
 		sig_aa.replace(sig_y, sig_a);
 
 		RTLIL::SigSpec sig_bb;
-		for (int i = 0; i < GetSize(sig_b)/GetSize(sig_a); i++) {
+		for (int i = 0; i < GetSize(sig_b) / GetSize(sig_a); i++) {
 			RTLIL::SigSpec s = sig;
-			s.replace(sig_y, sig_b.extract(i*GetSize(sig_a), GetSize(sig_a)));
+			s.replace(sig_y, sig_b.extract(i * GetSize(sig_a), GetSize(sig_a)));
 			sig_bb.append(s);
 		}
 
@@ -114,8 +114,8 @@ static bool find_states(RTLIL::SigSpec sig, const RTLIL::SigSpec &dff_out, RTLIL
 		if (!find_states(sig_aa, dff_out, ctrl, states))
 			return false;
 
-		for (int i = 0; i < GetSize(sig_bb)/GetSize(sig_aa); i++) {
-			if (!find_states(sig_bb.extract(i*GetSize(sig_aa), GetSize(sig_aa)), dff_out, ctrl, states))
+		for (int i = 0; i < GetSize(sig_bb) / GetSize(sig_aa); i++) {
+			if (!find_states(sig_bb.extract(i * GetSize(sig_aa), GetSize(sig_aa)), dff_out, ctrl, states))
 				return false;
 		}
 	}
@@ -141,19 +141,21 @@ static RTLIL::Const sig2const(ConstEval &ce, RTLIL::SigSpec sig, RTLIL::State no
 	return sig.as_const();
 }
 
-static void find_transitions(ConstEval &ce, ConstEval &ce_nostop, FsmData &fsm_data, std::map<RTLIL::Const, int> &states, int state_in, RTLIL::SigSpec ctrl_in, RTLIL::SigSpec ctrl_out, RTLIL::SigSpec dff_in, RTLIL::SigSpec dont_care)
+static void find_transitions(ConstEval &ce, ConstEval &ce_nostop, FsmData &fsm_data, std::map<RTLIL::Const, int> &states, int state_in,
+			     RTLIL::SigSpec ctrl_in, RTLIL::SigSpec ctrl_out, RTLIL::SigSpec dff_in, RTLIL::SigSpec dont_care)
 {
 	bool undef_bit_in_next_state_mode = false;
 	RTLIL::SigSpec undef, constval;
 
-	if (ce.eval(ctrl_out, undef) && ce.eval(dff_in, undef))
-	{
+	if (ce.eval(ctrl_out, undef) && ce.eval(dff_in, undef)) {
 		if (0) {
-undef_bit_in_next_state:
+		undef_bit_in_next_state:
 			for (auto &bit : dff_in)
-				if (bit.wire != nullptr) bit = RTLIL::Sm;
+				if (bit.wire != nullptr)
+					bit = RTLIL::Sm;
 			for (auto &bit : ctrl_out)
-				if (bit.wire != nullptr) bit = RTLIL::Sm;
+				if (bit.wire != nullptr)
+					bit = RTLIL::Sm;
 			undef_bit_in_next_state_mode = true;
 		}
 
@@ -178,10 +180,9 @@ undef_bit_in_next_state:
 			log_state_in = fsm_data.state_table.at(state_in);
 
 		if (states.count(ce.values_map(ce.assign_map(dff_in)).as_const()) == 0) {
-			log("  transition: %10s %s -> INVALID_STATE(%s) %s  <ignored invalid transition!>%s\n",
-					log_signal(log_state_in), log_signal(tr.ctrl_in),
-					log_signal(ce.values_map(ce.assign_map(dff_in))), log_signal(tr.ctrl_out),
-					undef_bit_in_next_state_mode ? " SHORTENED" : "");
+			log("  transition: %10s %s -> INVALID_STATE(%s) %s  <ignored invalid transition!>%s\n", log_signal(log_state_in),
+			    log_signal(tr.ctrl_in), log_signal(ce.values_map(ce.assign_map(dff_in))), log_signal(tr.ctrl_out),
+			    undef_bit_in_next_state_mode ? " SHORTENED" : "");
 			return;
 		}
 
@@ -190,13 +191,11 @@ undef_bit_in_next_state:
 
 		if (dff_in.is_fully_def()) {
 			fsm_data.transition_table.push_back(tr);
-			log("  transition: %10s %s -> %10s %s\n",
-					log_signal(log_state_in), log_signal(tr.ctrl_in),
-					log_signal(fsm_data.state_table[tr.state_out]), log_signal(tr.ctrl_out));
+			log("  transition: %10s %s -> %10s %s\n", log_signal(log_state_in), log_signal(tr.ctrl_in),
+			    log_signal(fsm_data.state_table[tr.state_out]), log_signal(tr.ctrl_out));
 		} else {
-			log("  transition: %10s %s -> %10s %s  <ignored undef transition!>\n",
-					log_signal(log_state_in), log_signal(tr.ctrl_in),
-					log_signal(fsm_data.state_table[tr.state_out]), log_signal(tr.ctrl_out));
+			log("  transition: %10s %s -> %10s %s  <ignored undef transition!>\n", log_signal(log_state_in), log_signal(tr.ctrl_in),
+			    log_signal(fsm_data.state_table[tr.state_out]), log_signal(tr.ctrl_out));
 		}
 		return;
 	}
@@ -211,8 +210,7 @@ undef_bit_in_next_state:
 	undef = undef.extract(0, 1);
 	constval = undef;
 
-	if (ce_nostop.eval(constval))
-	{
+	if (ce_nostop.eval(constval)) {
 		ce.push();
 		dont_care.append(undef);
 		ce.set(undef, constval.as_const());
@@ -227,9 +225,7 @@ undef_bit_in_next_state:
 		find_transitions(ce, ce_nostop, fsm_data, states, state_in, ctrl_in, ctrl_out, dff_in, dont_care);
 	found_contradiction_1:
 		ce.pop();
-	}
-	else
-	{
+	} else {
 		ce.push(), ce_nostop.push();
 		ce.set(undef, State::S0);
 		ce_nostop.set(undef, State::S0);
@@ -400,7 +396,7 @@ static void extract_fsm(RTLIL::Wire *wire)
 }
 
 struct FsmExtractPass : public Pass {
-	FsmExtractPass() : Pass("fsm_extract", "extracting FSMs in design") { }
+	FsmExtractPass() : Pass("fsm_extract", "extracting FSMs in design") {}
 	void help() override
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
@@ -424,8 +420,7 @@ struct FsmExtractPass : public Pass {
 
 		CellTypes ct(design);
 
-		for (auto mod : design->selected_modules())
-		{
+		for (auto mod : design->selected_modules()) {
 			module = mod;
 			assign_map.set(module);
 
@@ -439,8 +434,8 @@ struct FsmExtractPass : public Pass {
 						assign_map.apply(sig);
 						sig2driver.insert(sig, sig2driver_entry_t(cell->name, conn_it.first));
 					}
-					if (ct.cell_input(cell->type, conn_it.first) && cell->hasPort(ID::Y) &&
-							cell->getPort(ID::Y).size() == 1 && (conn_it.first == ID::A || conn_it.first == ID::B)) {
+					if (ct.cell_input(cell->type, conn_it.first) && cell->hasPort(ID::Y) && cell->getPort(ID::Y).size() == 1 &&
+					    (conn_it.first == ID::A || conn_it.first == ID::B)) {
 						RTLIL::SigSpec sig = conn_it.second;
 						assign_map.apply(sig);
 						sig2trigger.insert(sig, sig2driver_entry_t(cell->name, conn_it.first));
@@ -449,13 +444,13 @@ struct FsmExtractPass : public Pass {
 				if (cell->type == ID($pmux)) {
 					RTLIL::SigSpec sel_sig = assign_map(cell->getPort(ID::S));
 					for (auto &bit1 : sel_sig)
-					for (auto &bit2 : sel_sig)
-						if (bit1 != bit2)
-							exclusive_ctrls[bit1].insert(bit2);
+						for (auto &bit2 : sel_sig)
+							if (bit1 != bit2)
+								exclusive_ctrls[bit1].insert(bit2);
 				}
 			}
 
-			std::vector<RTLIL::Wire*> wire_list;
+			std::vector<RTLIL::Wire *> wire_list;
 			for (auto wire : module->selected_wires())
 				if (wire->attributes.count(ID::fsm_encoding) > 0 && wire->attributes[ID::fsm_encoding].decode_string() != "none")
 					wire_list.push_back(wire);

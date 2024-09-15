@@ -24,25 +24,18 @@
 
 YOSYS_NAMESPACE_BEGIN
 
-struct CellType
-{
+struct CellType {
 	RTLIL::IdString type;
 	pool<RTLIL::IdString> inputs, outputs;
 	bool is_evaluable;
 };
 
-struct CellTypes
-{
+struct CellTypes {
 	dict<RTLIL::IdString, CellType> cell_types;
 
-	CellTypes()
-	{
-	}
+	CellTypes() {}
 
-	CellTypes(RTLIL::Design *design)
-	{
-		setup(design);
-	}
+	CellTypes(RTLIL::Design *design) { setup(design); }
 
 	void setup(RTLIL::Design *design = NULL)
 	{
@@ -113,20 +106,15 @@ struct CellTypes
 
 	void setup_internals_eval()
 	{
-		std::vector<RTLIL::IdString> unary_ops = {
-			ID($not), ID($pos), ID($neg),
-			ID($reduce_and), ID($reduce_or), ID($reduce_xor), ID($reduce_xnor), ID($reduce_bool),
-			ID($logic_not), ID($slice), ID($lut), ID($sop)
-		};
+		std::vector<RTLIL::IdString> unary_ops = {ID($not),	  ID($pos),	   ID($neg),	     ID($reduce_and),
+							  ID($reduce_or), ID($reduce_xor), ID($reduce_xnor), ID($reduce_bool),
+							  ID($logic_not), ID($slice),	   ID($lut),	     ID($sop)};
 
 		std::vector<RTLIL::IdString> binary_ops = {
-			ID($and), ID($or), ID($xor), ID($xnor),
-			ID($shl), ID($shr), ID($sshl), ID($sshr), ID($shift), ID($shiftx),
-			ID($lt), ID($le), ID($eq), ID($ne), ID($eqx), ID($nex), ID($ge), ID($gt),
-			ID($add), ID($sub), ID($mul), ID($div), ID($mod), ID($divfloor), ID($modfloor), ID($pow),
-			ID($logic_and), ID($logic_or), ID($concat), ID($macc),
-			ID($bweqx)
-		};
+		  ID($and),	 ID($or),     ID($xor),	      ID($xnor),     ID($shl),	  ID($shr),  ID($sshl), ID($sshr),
+		  ID($shift),	 ID($shiftx), ID($lt),	      ID($le),	     ID($eq),	  ID($ne),   ID($eqx),	ID($nex),
+		  ID($ge),	 ID($gt),     ID($add),	      ID($sub),	     ID($mul),	  ID($div),  ID($mod),	ID($divfloor),
+		  ID($modfloor), ID($pow),    ID($logic_and), ID($logic_or), ID($concat), ID($macc), ID($bweqx)};
 
 		for (auto type : unary_ops)
 			setup_type(type, {ID::A}, {ID::Y}, true);
@@ -165,10 +153,7 @@ struct CellTypes
 		setup_type(ID($dlatchsr), {ID::EN, ID::SET, ID::CLR, ID::D}, {ID::Q});
 	}
 
-	void setup_internals_anyinit()
-	{
-		setup_type(ID($anyinit), {ID::D}, {ID::Q});
-	}
+	void setup_internals_anyinit() { setup_type(ID($anyinit), {ID::D}, {ID::Q}); }
 
 	void setup_internals_mem()
 	{
@@ -181,7 +166,9 @@ struct CellTypes
 		setup_type(ID($meminit), {ID::ADDR, ID::DATA}, pool<RTLIL::IdString>());
 		setup_type(ID($meminit_v2), {ID::ADDR, ID::DATA, ID::EN}, pool<RTLIL::IdString>());
 		setup_type(ID($mem), {ID::RD_CLK, ID::RD_EN, ID::RD_ADDR, ID::WR_CLK, ID::WR_EN, ID::WR_ADDR, ID::WR_DATA}, {ID::RD_DATA});
-		setup_type(ID($mem_v2), {ID::RD_CLK, ID::RD_EN, ID::RD_ARST, ID::RD_SRST, ID::RD_ADDR, ID::WR_CLK, ID::WR_EN, ID::WR_ADDR, ID::WR_DATA}, {ID::RD_DATA});
+		setup_type(ID($mem_v2),
+			   {ID::RD_CLK, ID::RD_EN, ID::RD_ARST, ID::RD_SRST, ID::RD_ADDR, ID::WR_CLK, ID::WR_EN, ID::WR_ADDR, ID::WR_DATA},
+			   {ID::RD_DATA});
 
 		setup_type(ID($fsm), {ID::CLK, ID::ARST, ID::CTRL_IN}, {ID::CTRL_OUT});
 	}
@@ -199,8 +186,8 @@ struct CellTypes
 		setup_type(ID($_NOT_), {ID::A}, {ID::Y}, true);
 		setup_type(ID($_AND_), {ID::A, ID::B}, {ID::Y}, true);
 		setup_type(ID($_NAND_), {ID::A, ID::B}, {ID::Y}, true);
-		setup_type(ID($_OR_),  {ID::A, ID::B}, {ID::Y}, true);
-		setup_type(ID($_NOR_),  {ID::A, ID::B}, {ID::Y}, true);
+		setup_type(ID($_OR_), {ID::A, ID::B}, {ID::Y}, true);
+		setup_type(ID($_NOR_), {ID::A, ID::B}, {ID::Y}, true);
 		setup_type(ID($_XOR_), {ID::A, ID::B}, {ID::Y}, true);
 		setup_type(ID($_XNOR_), {ID::A, ID::B}, {ID::Y}, true);
 		setup_type(ID($_ANDNOT_), {ID::A, ID::B}, {ID::Y}, true);
@@ -209,7 +196,9 @@ struct CellTypes
 		setup_type(ID($_NMUX_), {ID::A, ID::B, ID::S}, {ID::Y}, true);
 		setup_type(ID($_MUX4_), {ID::A, ID::B, ID::C, ID::D, ID::S, ID::T}, {ID::Y}, true);
 		setup_type(ID($_MUX8_), {ID::A, ID::B, ID::C, ID::D, ID::E, ID::F, ID::G, ID::H, ID::S, ID::T, ID::U}, {ID::Y}, true);
-		setup_type(ID($_MUX16_), {ID::A, ID::B, ID::C, ID::D, ID::E, ID::F, ID::G, ID::H, ID::I, ID::J, ID::K, ID::L, ID::M, ID::N, ID::O, ID::P, ID::S, ID::T, ID::U, ID::V}, {ID::Y}, true);
+		setup_type(ID($_MUX16_), {ID::A, ID::B, ID::C, ID::D, ID::E, ID::F, ID::G, ID::H, ID::I, ID::J,
+					  ID::K, ID::L, ID::M, ID::N, ID::O, ID::P, ID::S, ID::T, ID::U, ID::V},
+			   {ID::Y}, true);
 		setup_type(ID($_AOI3_), {ID::A, ID::B, ID::C}, {ID::Y}, true);
 		setup_type(ID($_OAI3_), {ID::A, ID::B, ID::C}, {ID::Y}, true);
 		setup_type(ID($_AOI4_), {ID::A, ID::B, ID::C, ID::D}, {ID::Y}, true);
@@ -221,8 +210,8 @@ struct CellTypes
 		std::vector<char> list_np = {'N', 'P'}, list_01 = {'0', '1'};
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-			setup_type(stringf("$_SR_%c%c_", c1, c2), {ID::S, ID::R}, {ID::Q});
+			for (auto c2 : list_np)
+				setup_type(stringf("$_SR_%c%c_", c1, c2), {ID::S, ID::R}, {ID::Q});
 
 		setup_type(ID($_FF_), {ID::D}, {ID::Q});
 
@@ -230,80 +219,75 @@ struct CellTypes
 			setup_type(stringf("$_DFF_%c_", c1), {ID::C, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-			setup_type(stringf("$_DFFE_%c%c_", c1, c2), {ID::C, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				setup_type(stringf("$_DFFE_%c%c_", c1, c2), {ID::C, ID::D, ID::E}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-			setup_type(stringf("$_DFF_%c%c%c_", c1, c2, c3), {ID::C, ID::R, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					setup_type(stringf("$_DFF_%c%c%c_", c1, c2, c3), {ID::C, ID::R, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-		for (auto c4 : list_np)
-			setup_type(stringf("$_DFFE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					for (auto c4 : list_np)
+						setup_type(stringf("$_DFFE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-			setup_type(stringf("$_ALDFF_%c%c_", c1, c2), {ID::C, ID::L, ID::AD, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				setup_type(stringf("$_ALDFF_%c%c_", c1, c2), {ID::C, ID::L, ID::AD, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_np)
-			setup_type(stringf("$_ALDFFE_%c%c%c_", c1, c2, c3), {ID::C, ID::L, ID::AD, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_np)
+					setup_type(stringf("$_ALDFFE_%c%c%c_", c1, c2, c3), {ID::C, ID::L, ID::AD, ID::D, ID::E}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_np)
-			setup_type(stringf("$_DFFSR_%c%c%c_", c1, c2, c3), {ID::C, ID::S, ID::R, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_np)
+					setup_type(stringf("$_DFFSR_%c%c%c_", c1, c2, c3), {ID::C, ID::S, ID::R, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_np)
-		for (auto c4 : list_np)
-			setup_type(stringf("$_DFFSRE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::S, ID::R, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_np)
+					for (auto c4 : list_np)
+						setup_type(stringf("$_DFFSRE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::S, ID::R, ID::D, ID::E},
+							   {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-			setup_type(stringf("$_SDFF_%c%c%c_", c1, c2, c3), {ID::C, ID::R, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					setup_type(stringf("$_SDFF_%c%c%c_", c1, c2, c3), {ID::C, ID::R, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-		for (auto c4 : list_np)
-			setup_type(stringf("$_SDFFE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					for (auto c4 : list_np)
+						setup_type(stringf("$_SDFFE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-		for (auto c4 : list_np)
-			setup_type(stringf("$_SDFFCE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					for (auto c4 : list_np)
+						setup_type(stringf("$_SDFFCE_%c%c%c%c_", c1, c2, c3, c4), {ID::C, ID::R, ID::D, ID::E}, {ID::Q});
 
 		for (auto c1 : list_np)
 			setup_type(stringf("$_DLATCH_%c_", c1), {ID::E, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_01)
-			setup_type(stringf("$_DLATCH_%c%c%c_", c1, c2, c3), {ID::E, ID::R, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_01)
+					setup_type(stringf("$_DLATCH_%c%c%c_", c1, c2, c3), {ID::E, ID::R, ID::D}, {ID::Q});
 
 		for (auto c1 : list_np)
-		for (auto c2 : list_np)
-		for (auto c3 : list_np)
-			setup_type(stringf("$_DLATCHSR_%c%c%c_", c1, c2, c3), {ID::E, ID::S, ID::R, ID::D}, {ID::Q});
+			for (auto c2 : list_np)
+				for (auto c3 : list_np)
+					setup_type(stringf("$_DLATCHSR_%c%c%c_", c1, c2, c3), {ID::E, ID::S, ID::R, ID::D}, {ID::Q});
 	}
 
-	void clear()
-	{
-		cell_types.clear();
-	}
+	void clear() { cell_types.clear(); }
 
-	bool cell_known(RTLIL::IdString type) const
-	{
-		return cell_types.count(type) != 0;
-	}
+	bool cell_known(RTLIL::IdString type) const { return cell_types.count(type) != 0; }
 
 	bool cell_output(RTLIL::IdString type, RTLIL::IdString port) const
 	{
@@ -326,12 +310,15 @@ struct CellTypes
 	static RTLIL::Const eval_not(RTLIL::Const v)
 	{
 		for (auto &bit : v.bits)
-			if (bit == State::S0) bit = State::S1;
-			else if (bit == State::S1) bit = State::S0;
+			if (bit == State::S0)
+				bit = State::S1;
+			else if (bit == State::S1)
+				bit = State::S0;
 		return v;
 	}
 
-	static RTLIL::Const eval(RTLIL::IdString type, const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool signed1, bool signed2, int result_len, bool *errp = nullptr)
+	static RTLIL::Const eval(RTLIL::IdString type, const RTLIL::Const &arg1, const RTLIL::Const &arg2, bool signed1, bool signed2, int result_len,
+				 bool *errp = nullptr)
 	{
 		if (type == ID($sshr) && !signed1)
 			type = ID($shr);
@@ -339,13 +326,15 @@ struct CellTypes
 			type = ID($shl);
 
 		if (type != ID($sshr) && type != ID($sshl) && type != ID($shr) && type != ID($shl) && type != ID($shift) && type != ID($shiftx) &&
-				type != ID($pos) && type != ID($neg) && type != ID($not)) {
+		    type != ID($pos) && type != ID($neg) && type != ID($not)) {
 			if (!signed1 || !signed2)
 				signed1 = false, signed2 = false;
 		}
 
-#define HANDLE_CELL_TYPE(_t) if (type == ID($##_t)) return const_ ## _t(arg1, arg2, signed1, signed2, result_len);
-		HANDLE_CELL_TYPE(not)
+#define HANDLE_CELL_TYPE(_t)                                                                                                                         \
+	if (type == ID($##_t))                                                                                                                       \
+		return const_##_t(arg1, arg2, signed1, signed2, result_len);
+		HANDLE_CELL_TYPE(not )
 		HANDLE_CELL_TYPE(and)
 		HANDLE_CELL_TYPE(or)
 		HANDLE_CELL_TYPE(xor)
@@ -419,7 +408,7 @@ struct CellTypes
 			RTLIL::Const ret;
 			int width = cell->parameters.at(ID::Y_WIDTH).as_int();
 			int offset = cell->parameters.at(ID::OFFSET).as_int();
-			ret.bits.insert(ret.bits.end(), arg1.bits.begin()+offset, arg1.bits.begin()+offset+width);
+			ret.bits.insert(ret.bits.end(), arg1.bits.begin() + offset, arg1.bits.begin() + offset + width);
 			return ret;
 		}
 
@@ -429,23 +418,19 @@ struct CellTypes
 			return ret;
 		}
 
-		if (cell->type == ID($bmux))
-		{
+		if (cell->type == ID($bmux)) {
 			return const_bmux(arg1, arg2);
 		}
 
-		if (cell->type == ID($demux))
-		{
+		if (cell->type == ID($demux)) {
 			return const_demux(arg1, arg2);
 		}
 
-		if (cell->type == ID($bweqx))
-		{
+		if (cell->type == ID($bweqx)) {
 			return const_bweqx(arg1, arg2);
 		}
 
-		if (cell->type == ID($lut))
-		{
+		if (cell->type == ID($lut)) {
 			int width = cell->parameters.at(ID::WIDTH).as_int();
 
 			std::vector<RTLIL::State> t = cell->parameters.at(ID::LUT).bits;
@@ -456,31 +441,33 @@ struct CellTypes
 			return const_bmux(t, arg1);
 		}
 
-		if (cell->type == ID($sop))
-		{
+		if (cell->type == ID($sop)) {
 			int width = cell->parameters.at(ID::WIDTH).as_int();
 			int depth = cell->parameters.at(ID::DEPTH).as_int();
 			std::vector<RTLIL::State> t = cell->parameters.at(ID::TABLE).bits;
 
-			while (GetSize(t) < width*depth*2)
+			while (GetSize(t) < width * depth * 2)
 				t.push_back(State::S0);
 
 			RTLIL::State default_ret = State::S0;
 
-			for (int i = 0; i < depth; i++)
-			{
+			for (int i = 0; i < depth; i++) {
 				bool match = true;
 				bool match_x = true;
 
 				for (int j = 0; j < width; j++) {
 					RTLIL::State a = arg1.bits.at(j);
-					if (t.at(2*width*i + 2*j + 0) == State::S1) {
-						if (a == State::S1) match_x = false;
-						if (a != State::S0) match = false;
+					if (t.at(2 * width * i + 2 * j + 0) == State::S1) {
+						if (a == State::S1)
+							match_x = false;
+						if (a != State::S0)
+							match = false;
 					}
-					if (t.at(2*width*i + 2*j + 1) == State::S1) {
-						if (a == State::S0) match_x = false;
-						if (a != State::S1) match = false;
+					if (t.at(2 * width * i + 2 * j + 1) == State::S1) {
+						if (a == State::S0)
+							match_x = false;
+						if (a != State::S1)
+							match = false;
 					}
 				}
 
@@ -500,7 +487,8 @@ struct CellTypes
 		return eval(cell->type, arg1, arg2, signed_a, signed_b, result_len, errp);
 	}
 
-	static RTLIL::Const eval(RTLIL::Cell *cell, const RTLIL::Const &arg1, const RTLIL::Const &arg2, const RTLIL::Const &arg3, bool *errp = nullptr)
+	static RTLIL::Const eval(RTLIL::Cell *cell, const RTLIL::Const &arg1, const RTLIL::Const &arg2, const RTLIL::Const &arg3,
+				 bool *errp = nullptr)
 	{
 		if (cell->type.in(ID($mux), ID($_MUX_)))
 			return const_mux(arg1, arg2, arg3);
@@ -517,7 +505,8 @@ struct CellTypes
 		return eval(cell, arg1, arg2, errp);
 	}
 
-	static RTLIL::Const eval(RTLIL::Cell *cell, const RTLIL::Const &arg1, const RTLIL::Const &arg2, const RTLIL::Const &arg3, const RTLIL::Const &arg4, bool *errp = nullptr)
+	static RTLIL::Const eval(RTLIL::Cell *cell, const RTLIL::Const &arg1, const RTLIL::Const &arg2, const RTLIL::Const &arg3,
+				 const RTLIL::Const &arg4, bool *errp = nullptr)
 	{
 		if (cell->type == ID($_AOI4_))
 			return eval_not(const_or(const_and(arg1, arg2, false, false, 1), const_and(arg3, arg4, false, false, 1), false, false, 1));

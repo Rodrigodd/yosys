@@ -21,49 +21,50 @@
 #include <optional>
 #include <stdint.h>
 
-#include "kernel/yosys.h"
-#include "kernel/celltypes.h"
-#include "passes/techmap/libparse.h"
-#include "kernel/cost.h"
 #include "frontends/ast/ast.h"
+#include "kernel/celltypes.h"
+#include "kernel/cost.h"
+#include "kernel/yosys.h"
 #include "libs/json11/json11.hpp"
+#include "passes/techmap/libparse.h"
 
 #if defined(__APPLE__) && defined(__MACH__)
-#include <mach/task.h>
 #include <mach/mach_init.h>
+#include <mach/task.h>
 #endif
 
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
 
-std::optional<uint64_t> current_mem_bytes() {
+std::optional<uint64_t> current_mem_bytes()
+{
 
 #if defined(__APPLE__)
-    task_basic_info_64_data_t basicInfo;
-    mach_msg_type_number_t count = TASK_BASIC_INFO_64_COUNT;
-    kern_return_t error = task_info(mach_task_self(), TASK_BASIC_INFO_64, (task_info_t)&basicInfo, &count);
-    if (error != KERN_SUCCESS) {
-        return {}; // Error getting task information
-    }
-    return basicInfo.resident_size; // Return RSS in KB
+	task_basic_info_64_data_t basicInfo;
+	mach_msg_type_number_t count = TASK_BASIC_INFO_64_COUNT;
+	kern_return_t error = task_info(mach_task_self(), TASK_BASIC_INFO_64, (task_info_t)&basicInfo, &count);
+	if (error != KERN_SUCCESS) {
+		return {}; // Error getting task information
+	}
+	return basicInfo.resident_size; // Return RSS in KB
 
 #elif defined(__linux__)
 	// Not all linux distributions have to have this file
-    std::ifstream statusFile("/proc/self/status");
-    std::string line;
-    while (std::getline(statusFile, line)) {
-        if (line.find("VmRSS:") == 0) {
-            std::istringstream iss(line);
-            std::string token;
+	std::ifstream statusFile("/proc/self/status");
+	std::string line;
+	while (std::getline(statusFile, line)) {
+		if (line.find("VmRSS:") == 0) {
+			std::istringstream iss(line);
+			std::string token;
 			// Skip prefix
-            iss >> token;
-            uint64_t rss;
-            iss >> rss;
-            return rss * 1024;
-        }
-    }
+			iss >> token;
+			uint64_t rss;
+			iss >> rss;
+			return rss * 1024;
+		}
+	}
 	// Error reading /proc/self/status
-    return {};
+	return {};
 
 #else
 	return {};
@@ -71,7 +72,7 @@ std::optional<uint64_t> current_mem_bytes() {
 }
 
 struct InternalStatsPass : public Pass {
-	InternalStatsPass() : Pass("internal_stats", "print internal statistics") { }
+	InternalStatsPass() : Pass("internal_stats", "print internal statistics") {}
 	void help() override
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
@@ -82,8 +83,7 @@ struct InternalStatsPass : public Pass {
 		bool json_mode = false;
 
 		size_t argidx;
-		for (argidx = 1; argidx < args.size(); argidx++)
-		{
+		for (argidx = 1; argidx < args.size(); argidx++) {
 			if (args[argidx] == "-json") {
 				json_mode = true;
 				continue;
@@ -92,7 +92,7 @@ struct InternalStatsPass : public Pass {
 		}
 		extra_args(args, argidx, design);
 
-		if(!json_mode)
+		if (!json_mode)
 			log_header(design, "Printing internal statistics.\n");
 
 		log_experimental("internal_stats");
@@ -106,7 +106,7 @@ struct InternalStatsPass : public Pass {
 			if (auto mem = current_mem_bytes()) {
 				log("   \"memory_now\": %s,\n", std::to_string(*mem).c_str());
 			}
-			auto ast_bytes = AST::astnode_count() * (unsigned long long) sizeof(AST::AstNode);
+			auto ast_bytes = AST::astnode_count() * (unsigned long long)sizeof(AST::AstNode);
 			log("   \"memory_ast\": %s,\n", std::to_string(ast_bytes).c_str());
 		}
 
@@ -116,7 +116,6 @@ struct InternalStatsPass : public Pass {
 			log("\n");
 			log("}\n");
 		}
-
 	}
 } InternalStatsPass;
 

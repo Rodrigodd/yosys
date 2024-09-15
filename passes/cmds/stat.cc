@@ -19,11 +19,11 @@
 
 #include <iterator>
 
-#include "kernel/yosys.h"
 #include "kernel/celltypes.h"
-#include "passes/techmap/libparse.h"
 #include "kernel/cost.h"
+#include "kernel/yosys.h"
 #include "libs/json11/json11.hpp"
+#include "passes/techmap/libparse.h"
 
 USING_YOSYS_NAMESPACE
 PRIVATE_NAMESPACE_BEGIN
@@ -33,17 +33,17 @@ struct cell_area_t {
 	bool is_sequential;
 };
 
-struct statdata_t
-{
-	#define STAT_INT_MEMBERS X(num_wires) X(num_wire_bits) X(num_pub_wires) X(num_pub_wire_bits) \
-			X(num_ports) X(num_port_bits) X(num_memories) X(num_memory_bits) X(num_cells) \
-			X(num_processes)
+struct statdata_t {
+#define STAT_INT_MEMBERS                                                                                                                             \
+	X(num_wires)                                                                                                                                 \
+	X(num_wire_bits) X(num_pub_wires) X(num_pub_wire_bits) X(num_ports) X(num_port_bits) X(num_memories) X(num_memory_bits) X(num_cells)         \
+	  X(num_processes)
 
-	#define STAT_NUMERIC_MEMBERS STAT_INT_MEMBERS X(area)
+#define STAT_NUMERIC_MEMBERS STAT_INT_MEMBERS X(area)
 
-	#define X(_name) unsigned int _name;
+#define X(_name) unsigned int _name;
 	STAT_INT_MEMBERS
-	#undef X
+#undef X
 	double area = 0;
 	double sequential_area = 0;
 	string tech;
@@ -55,9 +55,9 @@ struct statdata_t
 	statdata_t operator+(const statdata_t &other) const
 	{
 		statdata_t sum = other;
-	#define X(_name) sum._name += _name;
+#define X(_name) sum._name += _name;
 		STAT_NUMERIC_MEMBERS
-	#undef X
+#undef X
 		for (auto &it : num_cells_by_type)
 			sum.num_cells_by_type[it.first] += it.second;
 		return sum;
@@ -66,31 +66,29 @@ struct statdata_t
 	statdata_t operator*(unsigned int other) const
 	{
 		statdata_t sum = *this;
-	#define X(_name) sum._name *= other;
+#define X(_name) sum._name *= other;
 		STAT_NUMERIC_MEMBERS
-	#undef X
+#undef X
 		for (auto &it : sum.num_cells_by_type)
 			it.second *= other;
 		return sum;
 	}
 
-	statdata_t()
-	{
-	#define X(_name) _name = 0;
-		STAT_NUMERIC_MEMBERS
-	#undef X
+	statdata_t(){
+#define X(_name) _name = 0;
+	  STAT_NUMERIC_MEMBERS
+#undef X
 	}
 
 	statdata_t(RTLIL::Design *design, RTLIL::Module *mod, bool width_mode, const dict<IdString, cell_area_t> &cell_area, string techname)
 	{
 		tech = techname;
 
-	#define X(_name) _name = 0;
+#define X(_name) _name = 0;
 		STAT_NUMERIC_MEMBERS
-	#undef X
+#undef X
 
-		for (auto wire : mod->selected_wires())
-		{
+		for (auto wire : mod->selected_wires()) {
 			if (wire->port_input || wire->port_output) {
 				num_ports++;
 				num_port_bits += wire->width;
@@ -112,34 +110,30 @@ struct statdata_t
 			num_memory_bits += it.second->width * it.second->size;
 		}
 
-		for (auto cell : mod->selected_cells())
-		{
+		for (auto cell : mod->selected_cells()) {
 			RTLIL::IdString cell_type = cell->type;
 
-			if (width_mode)
-			{
-				if (cell_type.in(ID($not), ID($pos), ID($neg),
-						ID($logic_not), ID($logic_and), ID($logic_or),
-						ID($reduce_and), ID($reduce_or), ID($reduce_xor), ID($reduce_xnor), ID($reduce_bool),
-						ID($lut), ID($and), ID($or), ID($xor), ID($xnor),
-						ID($shl), ID($shr), ID($sshl), ID($sshr), ID($shift), ID($shiftx),
-						ID($lt), ID($le), ID($eq), ID($ne), ID($eqx), ID($nex), ID($ge), ID($gt),
-						ID($add), ID($sub), ID($mul), ID($div), ID($mod), ID($divfloor), ID($modfloor), ID($pow), ID($alu))) {
+			if (width_mode) {
+				if (cell_type.in(ID($not), ID($pos), ID($neg), ID($logic_not), ID($logic_and), ID($logic_or), ID($reduce_and),
+						 ID($reduce_or), ID($reduce_xor), ID($reduce_xnor), ID($reduce_bool), ID($lut), ID($and), ID($or),
+						 ID($xor), ID($xnor), ID($shl), ID($shr), ID($sshl), ID($sshr), ID($shift), ID($shiftx), ID($lt),
+						 ID($le), ID($eq), ID($ne), ID($eqx), ID($nex), ID($ge), ID($gt), ID($add), ID($sub), ID($mul),
+						 ID($div), ID($mod), ID($divfloor), ID($modfloor), ID($pow), ID($alu))) {
 					int width_a = cell->hasPort(ID::A) ? GetSize(cell->getPort(ID::A)) : 0;
 					int width_b = cell->hasPort(ID::B) ? GetSize(cell->getPort(ID::B)) : 0;
 					int width_y = cell->hasPort(ID::Y) ? GetSize(cell->getPort(ID::Y)) : 0;
 					cell_type = stringf("%s_%d", cell_type.c_str(), max<int>({width_a, width_b, width_y}));
-				}
-				else if (cell_type.in(ID($mux), ID($pmux)))
+				} else if (cell_type.in(ID($mux), ID($pmux)))
 					cell_type = stringf("%s_%d", cell_type.c_str(), GetSize(cell->getPort(ID::Y)));
 				else if (cell_type == ID($bmux))
-					cell_type = stringf("%s_%d_%d", cell_type.c_str(), GetSize(cell->getPort(ID::Y)), GetSize(cell->getPort(ID::S)));
+					cell_type =
+					  stringf("%s_%d_%d", cell_type.c_str(), GetSize(cell->getPort(ID::Y)), GetSize(cell->getPort(ID::S)));
 				else if (cell_type == ID($demux))
-					cell_type = stringf("%s_%d_%d", cell_type.c_str(), GetSize(cell->getPort(ID::A)), GetSize(cell->getPort(ID::S)));
-				else if (cell_type.in(
-						ID($sr), ID($ff), ID($dff), ID($dffe), ID($dffsr), ID($dffsre),
-						ID($adff), ID($adffe), ID($sdff), ID($sdffe), ID($sdffce),
-						ID($aldff), ID($aldffe), ID($dlatch), ID($adlatch), ID($dlatchsr)))
+					cell_type =
+					  stringf("%s_%d_%d", cell_type.c_str(), GetSize(cell->getPort(ID::A)), GetSize(cell->getPort(ID::S)));
+				else if (cell_type.in(ID($sr), ID($ff), ID($dff), ID($dffe), ID($dffsr), ID($dffsre), ID($adff), ID($adffe),
+						      ID($sdff), ID($sdffe), ID($sdffce), ID($aldff), ID($aldffe), ID($dlatch), ID($adlatch),
+						      ID($dlatchsr)))
 					cell_type = stringf("%s_%d", cell_type.c_str(), GetSize(cell->getPort(ID::Q)));
 			}
 
@@ -150,8 +144,7 @@ struct statdata_t
 						sequential_area += cell_data.area;
 					}
 					area += cell_data.area;
-				}
-				else {
+				} else {
 					unknown_cell_area.insert(cell_type);
 				}
 			}
@@ -262,17 +255,15 @@ struct statdata_t
 		if (area != 0) {
 			log("\n");
 			log("   Chip area for %smodule '%s': %f\n", (top_mod) ? "top " : "", mod_name.c_str(), area);
-			log("     of which used for sequential elements: %f (%.2f%%)\n", sequential_area, 100.0*sequential_area/area);
+			log("     of which used for sequential elements: %f (%.2f%%)\n", sequential_area, 100.0 * sequential_area / area);
 		}
 
-		if (tech == "xilinx")
-		{
+		if (tech == "xilinx") {
 			log("\n");
 			log("   Estimated number of LCs: %10u\n", estimate_xilinx_lc());
 		}
 
-		if (tech == "cmos")
-		{
+		if (tech == "cmos") {
 			bool tran_cnt_exact = true;
 			unsigned int tran_cnt = cmos_transistor_count(&tran_cnt_exact);
 
@@ -310,13 +301,11 @@ struct statdata_t
 			}
 		log("\n");
 		log("         }");
-		if (tech == "xilinx")
-		{
+		if (tech == "xilinx") {
 			log(",\n");
 			log("         \"estimated_num_lc\": %u", estimate_xilinx_lc());
 		}
-		if (tech == "cmos")
-		{
+		if (tech == "cmos") {
 			bool tran_cnt_exact = true;
 			unsigned int tran_cnt = cmos_transistor_count(&tran_cnt_exact);
 			log(",\n");
@@ -336,8 +325,8 @@ statdata_t hierarchy_worker(std::map<RTLIL::IdString, statdata_t> &mod_stat, RTL
 	for (auto &it : num_cells_by_type)
 		if (mod_stat.count(it.first) > 0) {
 			if (!quiet)
-				log("     %*s%-*s %6u\n", 2*level, "", 26-2*level, log_id(it.first), it.second);
-			mod_data = mod_data + hierarchy_worker(mod_stat, it.first, level+1, quiet) * it.second;
+				log("     %*s%-*s %6u\n", 2 * level, "", 26 - 2 * level, log_id(it.first), it.second);
+			mod_data = mod_data + hierarchy_worker(mod_stat, it.first, level + 1, quiet) * it.second;
 			mod_data.num_cells -= it.second;
 		} else {
 			mod_data.num_cells_by_type[it.first] += it.second;
@@ -356,8 +345,7 @@ void read_liberty_cellarea(dict<IdString, cell_area_t> &cell_area, string libert
 	LibertyParser libparser(f);
 	f.close();
 
-	for (auto cell : libparser.ast->children)
-	{
+	for (auto cell : libparser.ast->children) {
 		if (cell->id != "cell" || cell->args.size() != 1)
 			continue;
 
@@ -369,7 +357,7 @@ void read_liberty_cellarea(dict<IdString, cell_area_t> &cell_area, string libert
 }
 
 struct StatPass : public Pass {
-	StatPass() : Pass("stat", "print some statistics") { }
+	StatPass() : Pass("stat", "print some statistics") {}
 	void help() override
 	{
 		//   |---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|---v---|
@@ -409,25 +397,24 @@ struct StatPass : public Pass {
 		string techname;
 
 		size_t argidx;
-		for (argidx = 1; argidx < args.size(); argidx++)
-		{
+		for (argidx = 1; argidx < args.size(); argidx++) {
 			if (args[argidx] == "-width") {
 				width_mode = true;
 				continue;
 			}
-			if (args[argidx] == "-liberty" && argidx+1 < args.size()) {
+			if (args[argidx] == "-liberty" && argidx + 1 < args.size()) {
 				string liberty_file = args[++argidx];
 				rewrite_filename(liberty_file);
 				read_liberty_cellarea(cell_area, liberty_file);
 				continue;
 			}
-			if (args[argidx] == "-tech" && argidx+1 < args.size()) {
+			if (args[argidx] == "-tech" && argidx + 1 < args.size()) {
 				techname = args[++argidx];
 				continue;
 			}
-			if (args[argidx] == "-top" && argidx+1 < args.size()) {
-				if (design->module(RTLIL::escape_id(args[argidx+1])) == nullptr)
-					log_cmd_error("Can't find module %s.\n", args[argidx+1].c_str());
+			if (args[argidx] == "-top" && argidx + 1 < args.size()) {
+				if (design->module(RTLIL::escape_id(args[argidx + 1])) == nullptr)
+					log_cmd_error("Can't find module %s.\n", args[argidx + 1].c_str());
 				top_mod = design->module(RTLIL::escape_id(args[++argidx]));
 				continue;
 			}
@@ -439,7 +426,7 @@ struct StatPass : public Pass {
 		}
 		extra_args(args, argidx, design);
 
-		if(!json_mode)
+		if (!json_mode)
 			log_header(design, "Printing statistics.\n");
 
 		if (techname != "" && techname != "xilinx" && techname != "cmos" && !json_mode)
@@ -455,8 +442,7 @@ struct StatPass : public Pass {
 		}
 
 		bool first_module = true;
-		for (auto mod : design->selected_modules())
-		{
+		for (auto mod : design->selected_modules()) {
 			if (!top_mod && design->full_selection())
 				if (mod->get_bool_attribute(ID::top))
 					top_mod = mod;
@@ -480,8 +466,7 @@ struct StatPass : public Pass {
 			log(top_mod == nullptr ? "   }\n" : "   },\n");
 		}
 
-		if (top_mod != nullptr)
-		{
+		if (top_mod != nullptr) {
 			if (!json_mode && GetSize(mod_stat) > 1) {
 				log("\n");
 				log("=== design hierarchy ===\n");
