@@ -2120,6 +2120,14 @@ struct InternalCellChecker {
 			check_expected();
 			return;
 		}
+		if (cell->type.in(ID($delay))) {
+			param(ID::DELAY);
+			param(ID::WIDTH);
+			port(ID::A, param(ID::WIDTH));
+			port(ID::Y, param(ID::WIDTH));
+			check_expected();
+			return;
+		}
 		error(__LINE__);
 	}
 };

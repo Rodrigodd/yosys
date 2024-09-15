@@ -1836,6 +1836,17 @@ bool dump_cell_expr(std::ostream &f, std::string indent, RTLIL::Cell *cell)
 		return true;
 	}
 
+	if (cell->type == ID($delay)) {
+		f << stringf("%s"
+			     "assign #%d ",
+			     indent.c_str(), cell->parameters.at(ID::DELAY).as_int());
+		dump_sigspec(f, cell->getPort(ID::Y));
+		f << stringf(" = ");
+		dump_sigspec(f, cell->getPort(ID::A));
+		f << stringf(";\n");
+		return true;
+	}
+
 	if (RTLIL::builtin_ff_cell_types().count(cell->type)) {
 		FfData ff(nullptr, cell);
 
