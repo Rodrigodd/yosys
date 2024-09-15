@@ -27,15 +27,89 @@
 
 YOSYS_NAMESPACE_BEGIN
 
+struct ConstMap {
+	dict<RTLIL::SigBit, RTLIL::State> database;
+
+	void swap(ConstMap &other) { database.swap(other.database); }
+
+	void clear() { database.clear(); }
+
+	void add(const RTLIL::SigSpec &from, const RTLIL::Const &to)
+	{
+		log_assert(GetSize(from) == GetSize(to));
+
+		for (int i = 0; i < GetSize(from); i++) {
+			RTLIL::State bit = to.bits[i];
+			RTLIL::State current_bit = database.count(from[i]) ? database.at(from[i]) : State::Sz;
+
+			// resolve signals: Sa+X=Sx, X+Sa=X X+X=X, Sx+X=Sx, X+Sx=Sx, Sz+X=X, X+Sz=X, X+X=X, X+Y=Sx
+			// |   | X | 0 | 1 | Z | - |
+			// |---|---|---|---|---|---|
+			// | X | X | X | X | X | X |
+			// | 0 | X | 0 | X | 0 | X |
+			// | 1 | X | X | 1 | 1 | X |
+			// | Z | X | 0 | 1 | Z | X |
+			// | - | X | X | X | X | X |
+			if (bit == RTLIL::Sa || current_bit == RTLIL::Sa) {
+				bit = RTLIL::Sx;
+			} else if (bit == current_bit) {
+				// bit = bit
+			} else if (bit == RTLIL::Sx || current_bit == RTLIL::Sx) {
+				bit = RTLIL::Sx;
+			} else if (bit == RTLIL::Sz) {
+				bit = current_bit;
+			} else if (current_bit == RTLIL::Sz) {
+				// bit = bit;
+			} else {
+				bit = RTLIL::Sx;
+			}
+
+			database[from[i]] = bit;
+		}
+	}
+
+	void apply(RTLIL::SigBit &bit) const
+	{
+		if (database.count(bit) != 0)
+			bit = database.at(bit);
+	}
+
+	void apply(RTLIL::SigSpec &sig) const
+	{
+		for (auto &bit : sig)
+			apply(bit);
+	}
+
+	RTLIL::SigBit operator()(RTLIL::SigBit bit) const
+	{
+		apply(bit);
+		return bit;
+	}
+
+	RTLIL::SigSpec operator()(RTLIL::SigSpec sig) const
+	{
+		apply(sig);
+		return sig;
+	}
+
+	RTLIL::SigSpec operator()(RTLIL::Wire *wire) const
+	{
+		SigSpec sig(wire);
+		apply(sig);
+		return sig;
+	}
+};
+
 struct ConstEval {
 	RTLIL::Module *module;
 	SigMap assign_map;
-	SigMap values_map;
+	ConstMap values_map;
 	SigPool stop_signals;
 	SigSet<RTLIL::Cell *> sig2driver;
 	std::set<RTLIL::Cell *> busy;
-	std::vector<SigMap> stack;
+	std::vector<std::pair<ConstMap, SigPool>> stack;
 	RTLIL::State defaultval;
+	SigPool visited;
 
 	ConstEval(RTLIL::Module *module, RTLIL::State defaultval = RTLIL::State::Sm) : module(module), assign_map(module), defaultval(defaultval)
 	{
@@ -56,25 +130,23 @@ struct ConstEval {
 	{
 		values_map.clear();
 		stop_signals.clear();
+		visited.clear();
 	}
 
-	void push() { stack.push_back(values_map); }
+	void push() { stack.push_back(std::pair(values_map, visited)); }
 
 	void pop()
 	{
-		values_map.swap(stack.back());
+		values_map.swap(stack.back().first);
+		visited = std::move(stack.back().second);
 		stack.pop_back();
 	}
 
 	void set(RTLIL::SigSpec sig, RTLIL::Const value)
 	{
 		assign_map.apply(sig);
-#ifndef NDEBUG
-		RTLIL::SigSpec current_val = values_map(sig);
-		for (int i = 0; i < GetSize(current_val); i++)
-			log_assert(current_val[i].wire != NULL || current_val[i] == value.bits[i]);
-#endif
-		values_map.add(sig, RTLIL::SigSpec(value));
+		values_map.add(sig, value);
+		visited.add(sig);
 	}
 
 	void stop(RTLIL::SigSpec sig)
@@ -89,7 +161,7 @@ struct ConstEval {
 			RTLIL::SigSpec sig_p = cell->getPort(ID::P);
 			RTLIL::SigSpec sig_g = cell->getPort(ID::G);
 			RTLIL::SigSpec sig_ci = cell->getPort(ID::CI);
-			RTLIL::SigSpec sig_co = values_map(assign_map(cell->getPort(ID::CO)));
+			RTLIL::SigSpec sig_co = assign_map(cell->getPort(ID::CO));
 
 			if (sig_co.is_fully_const())
 				return true;
@@ -119,12 +191,31 @@ struct ConstEval {
 			return true;
 		}
 
+		if (cell->type == ID($tribuf) || cell->type == ID($_TBUF_)) {
+			IdString en_port = cell->type == ID($tribuf) ? ID::EN : ID::E;
+			RTLIL::SigSpec sig_a = cell->getPort(ID::A);
+			RTLIL::SigSpec sig_e = cell->getPort(en_port);
+			RTLIL::SigSpec sig_y = cell->getPort(ID::Y);
+
+			if (!eval(sig_a, undef, cell))
+				return false;
+
+			if (!eval(sig_e, undef, cell))
+				return false;
+
+			if (sig_e.as_bool()) {
+				set(sig_y, sig_a.as_const());
+			} else {
+				set(sig_y, RTLIL::Const(RTLIL::Sz, GetSize(sig_y)));
+			}
+
+			return true;
+		}
+
 		RTLIL::SigSpec sig_a, sig_b, sig_s, sig_y;
 
 		log_assert(cell->hasPort(ID::Y));
-		sig_y = values_map(assign_map(cell->getPort(ID::Y)));
-		if (sig_y.is_fully_const())
-			return true;
+		sig_y = assign_map(cell->getPort(ID::Y));
 
 		if (cell->hasPort(ID::S)) {
 			sig_s = cell->getPort(ID::S);
@@ -308,6 +399,12 @@ struct ConstEval {
 				log_abort();
 
 			set(cell->getPort(ID::Y), result);
+		} else if (cell->type == ID($equiv)) {
+			if (!eval(sig_a, undef, cell))
+				return false;
+			if (!eval(sig_b, undef, cell))
+				return false;
+			set(sig_y, sig_a.as_const() == sig_b.as_const() ? RTLIL::Const(1, 1) : RTLIL::Const(0, 1));
 		} else {
 			RTLIL::SigSpec sig_c, sig_d;
 
@@ -342,15 +439,27 @@ struct ConstEval {
 
 	bool eval(RTLIL::SigSpec &sig, RTLIL::SigSpec &undef, RTLIL::Cell *busy_cell = NULL)
 	{
-		assign_map.apply(sig);
-		values_map.apply(sig);
-
-		if (sig.is_fully_const())
+		if (sig.is_fully_const()) {
 			return true;
+		}
 
-		if (stop_signals.check_any(sig)) {
-			undef = stop_signals.extract(sig);
-			return false;
+		assign_map.apply(sig);
+
+		if (visited.check_all(sig)) {
+			values_map.apply(sig);
+			log_assert(sig.is_fully_const());
+			return true;
+		} else {
+			values_map.apply(sig);
+		}
+
+		{
+			RTLIL::SigSpec sig2 = sig;
+			values_map.apply(sig2);
+			if (stop_signals.check_any(sig2)) {
+				undef = stop_signals.extract(sig2);
+				return false;
+			}
 		}
 
 		if (busy_cell) {
@@ -375,19 +484,24 @@ struct ConstEval {
 			busy.erase(busy_cell);
 
 		values_map.apply(sig);
-		if (sig.is_fully_const())
+		if (sig.is_fully_const()) {
+			visited.add(sig);
 			return true;
+		}
 
 		if (defaultval != RTLIL::State::Sm) {
-			for (auto &bit : sig)
+			for (auto &bit : sig) {
 				if (bit.wire)
 					bit = defaultval;
+			}
+			visited.add(sig);
 			return true;
 		}
 
 		for (auto &c : sig.chunks())
 			if (c.wire != NULL)
 				undef.append(c);
+
 		return false;
 	}
 
