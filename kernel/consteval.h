@@ -107,9 +107,9 @@ struct ConstEval {
 	SigPool stop_signals;
 	SigSet<RTLIL::Cell *> sig2driver;
 	std::set<RTLIL::Cell *> busy;
-	std::vector<ConstMap> stack;
+	std::vector<std::pair<ConstMap, SigPool>> stack;
 	RTLIL::State defaultval;
-	pool<RTLIL::SigBit> visited;
+	SigPool visited;
 
 	ConstEval(RTLIL::Module *module, RTLIL::State defaultval = RTLIL::State::Sm) : module(module), assign_map(module), defaultval(defaultval)
 	{
@@ -133,11 +133,12 @@ struct ConstEval {
 		visited.clear();
 	}
 
-	void push() { stack.push_back(values_map); }
+	void push() { stack.push_back(std::pair(values_map, visited)); }
 
 	void pop()
 	{
-		values_map.swap(stack.back());
+		values_map.swap(stack.back().first);
+		visited = std::move(stack.back().second);
 		stack.pop_back();
 	}
 
@@ -145,6 +146,7 @@ struct ConstEval {
 	{
 		assign_map.apply(sig);
 		values_map.add(sig, value);
+		visited.add(sig);
 	}
 
 	void stop(RTLIL::SigSpec sig)
@@ -437,22 +439,27 @@ struct ConstEval {
 
 	bool eval(RTLIL::SigSpec &sig, RTLIL::SigSpec &undef, RTLIL::Cell *busy_cell = NULL)
 	{
-		assign_map.apply(sig);
-
-		bool fully_evaluated = true;
-		for (auto bit : sig) {
-			if (visited.count(bit))
-				continue;
-			fully_evaluated = false;
-		}
-		if (fully_evaluated) {
-			values_map.apply(sig);
+		if (sig.is_fully_const()) {
 			return true;
 		}
 
-		if (stop_signals.check_any(sig)) {
-			undef = stop_signals.extract(sig);
-			return false;
+		assign_map.apply(sig);
+
+		if (visited.check_all(sig)) {
+			values_map.apply(sig);
+			log_assert(sig.is_fully_const());
+			return true;
+		} else {
+			values_map.apply(sig);
+		}
+
+		{
+			RTLIL::SigSpec sig2 = sig;
+			values_map.apply(sig2);
+			if (stop_signals.check_any(sig2)) {
+				undef = stop_signals.extract(sig2);
+				return false;
+			}
 		}
 
 		if (busy_cell) {
@@ -478,8 +485,7 @@ struct ConstEval {
 
 		values_map.apply(sig);
 		if (sig.is_fully_const()) {
-			for (auto bit : sig)
-				visited.insert(bit);
+			visited.add(sig);
 			return true;
 		}
 
@@ -487,14 +493,15 @@ struct ConstEval {
 			for (auto &bit : sig) {
 				if (bit.wire)
 					bit = defaultval;
-				visited.insert(bit);
 			}
+			visited.add(sig);
 			return true;
 		}
 
 		for (auto &c : sig.chunks())
 			if (c.wire != NULL)
 				undef.append(c);
+
 		return false;
 	}
 
