@@ -218,6 +218,7 @@ struct TribufWorker {
 					auto driving_cells = get_driving_cells();
 
 					check_tribuf_signals_consistency(tribuf_signals);
+					module->check();
 
 					if (know_muxes.count(it) == 0)
 						continue;
@@ -300,7 +301,7 @@ struct TribufWorker {
 								// just modify the mux
 								cell->setPort(is_a ? ID::A : ID::B, extracted_x);
 								cell->setPort(ID::Y, y3);
-
+								cell->check();
 							} else {
 								log_debug("splitting %s into (%s, %s) and (%s, %s)\n", log_id(cell->name),
 									  log_signal(extracted_x), log_signal(extracted_y), log_signal(input_y),
@@ -312,17 +313,25 @@ struct TribufWorker {
 								auto extracted_a = input_y.extract(extracted_y, &a);
 								auto extracted_b = input_y.extract(extracted_y, &b);
 
-								a.remove(extracted_a);
-								b.remove(extracted_b);
-								y2.remove(extracted_y2);
+								input_y.remove(extracted_y, &a);
+								input_y.remove(extracted_y, &b);
+								input_y.remove(extracted_y, &y2);
+
+								if (a.size() != b.size() || a.size() != y2.size()) {
+									log_debug("a: %s\nb: %s\ny: %s\n", log_signal(a), log_signal(b),
+										  log_signal(y2));
+									log_flush();
+								}
 
 								cell->setPort(ID::A, a);
 								cell->setPort(ID::B, b);
 								cell->setPort(ID::Y, y2);
-								cell->setParam(ID::WIDTH, GetSize(extracted_y));
+								cell->setParam(ID::WIDTH, GetSize(a));
+								cell->check();
 
-								module->addMux(NEW_ID, is_a ? extracted_x : extracted_a,
-									       is_a ? extracted_b : extracted_x, cell->getPort(ID::S), y3);
+								auto mux = module->addMux(NEW_ID, is_a ? extracted_x : extracted_a,
+											  is_a ? extracted_b : extracted_x, cell->getPort(ID::S), y3);
+								mux->check();
 							}
 							RTLIL::SigSpec or_y;
 							if (!is_a) {
@@ -331,14 +340,15 @@ struct TribufWorker {
 							} else {
 								or_y = module->Or(NEW_ID, tribuf->getPort(en1_port), cell->getPort(ID::S));
 							}
-							module->addTribuf(NEW_ID, y3, or_y, extracted_y2);
+							auto new_tribuf = module->addTribuf(NEW_ID, y3, or_y, extracted_y2);
+							or_y.check(module);
+							new_tribuf->check();
 
 							for (auto bit : sigmap(extracted_y2)) {
 								tribuf_signals.insert(bit);
 								added_tribufs.insert(bit);
 							}
-						}
-						if (cell->type == ID($tribuf) || cell->type == ID($_TBUF_)) {
+						} else if (cell->type == ID($tribuf) || cell->type == ID($_TBUF_)) {
 							// convert: $tribuf(A, E1, Y) -> $tribuf(Y, E2, Y2)
 							//      to:                      $tribuf(A, E1 && E2, Y2)
 							IdString en2_port = cell->type == ID($tribuf) ? ID::EN : ID::E;
@@ -380,11 +390,13 @@ struct TribufWorker {
 								cell->setPort(ID::A, a2);
 								cell->setPort(ID::Y, y2);
 								cell->setParam(ID::WIDTH, GetSize(a2));
+								cell->check();
 
-								module->addTribuf(
-								  NEW_ID, extracted_y,
-								  module->And(NEW_ID, tribuf->getPort(en1_port), cell->getPort(en2_port)),
-								  extracted_y2);
+								module
+								  ->addTribuf(NEW_ID, extracted_y,
+									      module->And(NEW_ID, tribuf->getPort(en1_port), cell->getPort(en2_port)),
+									      extracted_y2)
+								  ->check();
 
 								for (auto bit : sigmap(extracted_y2)) {
 									tribuf_signals.insert(bit);
